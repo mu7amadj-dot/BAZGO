@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
-import React, { useState } from 'react';
+import React from 'react';
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +14,6 @@ import { Header } from '@/components/layout/Header';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { ImageViewer } from '@/components/ui/ImageViewer';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 
 export default function FreightDetailScreen() {
@@ -23,7 +22,6 @@ export default function FreightDetailScreen() {
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
   const { requests, drivers, applications, applyToFreight } = useApp();
-  const [viewerVisible, setViewerVisible] = useState(false);
 
   const request = requests.find((r) => r.id === id);
   if (!request) {
@@ -59,18 +57,7 @@ export default function FreightDetailScreen() {
         <Header title="تفاصيل الحمولة" showBack />
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
-        <Pressable
-          onPress={() => setViewerVisible(true)}
-          style={({ pressed }) => [styles.heroWrap, pressed && styles.heroPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="عرض صورة البضاعة بالحجم الكامل"
-        >
-          <Image source={{ uri: request.cargoImage }} style={styles.hero} contentFit="cover" transition={200} />
-          <View style={styles.heroZoom}>
-            <MaterialIcons name="zoom-out-map" size={16} color={colors.onPrimary} />
-            <Text style={styles.heroZoomText}>عرض الصورة بالكامل</Text>
-          </View>
-        </Pressable>
+        <Image source={{ uri: request.cargoImage }} style={styles.hero} contentFit="cover" transition={200} />
 
         <View style={styles.headRow}>
           <Text style={styles.cargoType}>{request.cargoType}</Text>
@@ -130,8 +117,6 @@ export default function FreightDetailScreen() {
           onPress={apply}
         />
       </View>
-
-      <ImageViewer visible={viewerVisible} uri={request.cargoImage} onClose={() => setViewerVisible(false)} />
     </View>
   );
 }
@@ -140,11 +125,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   content: { padding: spacing.md },
-  heroWrap: { position: 'relative' },
-  heroPressed: { opacity: 0.95 },
   hero: { width: '100%', height: 200, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
-  heroZoom: { position: 'absolute', bottom: spacing.sm, left: spacing.sm, flexDirection: 'row-reverse', alignItems: 'center', gap: 4, backgroundColor: 'rgba(10,10,12,0.5)', paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
-  heroZoomText: { ...typography.caption, color: colors.onPrimary },
   headRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
   cargoType: { ...typography.title, color: colors.text },
   merchant: { ...typography.body, color: colors.textSubtle, textAlign: 'right', marginTop: 2 },

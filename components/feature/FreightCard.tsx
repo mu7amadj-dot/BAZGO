@@ -1,5 +1,5 @@
 // Powered by OnSpace.AI
-import React, { useState } from 'react';
+import React from 'react';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
@@ -9,7 +9,6 @@ import { vehicleLabel, vehicleIcon } from '@/constants/config';
 import { formatIQD, formatWeight, formatDistance } from '@/services/format';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
 import { Badge } from '@/components/ui/Badge';
-import { ImageViewer } from '@/components/ui/ImageViewer';
 
 interface FreightCardProps {
   request: FreightRequest;
@@ -18,8 +17,6 @@ interface FreightCardProps {
 }
 
 export function FreightCard({ request, onPress, matched }: FreightCardProps) {
-  const [viewerVisible, setViewerVisible] = useState(false);
-
   return (
     <Pressable
       onPress={onPress}
@@ -27,18 +24,7 @@ export function FreightCard({ request, onPress, matched }: FreightCardProps) {
       accessibilityRole="button"
     >
       <View style={styles.header}>
-        <Pressable
-          onPress={() => setViewerVisible(true)}
-          style={({ pressed }) => [styles.thumbWrap, pressed && styles.thumbPressed]}
-          hitSlop={4}
-          accessibilityRole="button"
-          accessibilityLabel="عرض صورة البضاعة"
-        >
-          <Image source={{ uri: request.cargoImage }} style={styles.thumb} contentFit="cover" transition={200} />
-          <View style={styles.zoomBadge}>
-            <MaterialIcons name="zoom-in" size={13} color={colors.onPrimary} />
-          </View>
-        </Pressable>
+        <Image source={{ uri: request.cargoImage }} style={styles.thumb} contentFit="cover" transition={200} />
         <View style={styles.headerText}>
           <Text style={styles.cargoType} numberOfLines={1}>{request.cargoType}</Text>
           <Text style={styles.merchant} numberOfLines={1}>{request.merchantName}</Text>
@@ -91,8 +77,6 @@ export function FreightCard({ request, onPress, matched }: FreightCardProps) {
           <MaterialIcons name="chevron-left" size={18} color={colors.primary} />
         </View>
       </View>
-
-      <ImageViewer visible={viewerVisible} uri={request.cargoImage} onClose={() => setViewerVisible(false)} />
     </Pressable>
   );
 }
@@ -109,10 +93,7 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },
   header: { flexDirection: 'row-reverse', gap: spacing.sm },
-  thumbWrap: { width: 64, height: 64, position: 'relative' },
-  thumbPressed: { opacity: 0.85 },
   thumb: { width: 64, height: 64, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
-  zoomBadge: { position: 'absolute', bottom: 3, left: 3, backgroundColor: 'rgba(10,10,12,0.55)', borderRadius: radius.pill, padding: 3 },
   headerText: { flex: 1 },
   cargoType: { ...typography.section, color: colors.text, textAlign: 'right' },
   merchant: { ...typography.caption, color: colors.textSubtle, textAlign: 'right', marginTop: 2 },
