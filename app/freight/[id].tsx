@@ -1,0 +1,166 @@
+// Powered by OnSpace.AI
+import React, { useState } from 'react';
+import { Image } from 'expo-image';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useAlert } from '@/template';
+import { useApp } from '@/hooks/useApp';
+import { STATUS_LABELS, STATUS_COLORS } from '@/services/mockData';
+import { vehicleLabel } from '@/constants/config';
+import { formatIQD, formatWeight, formatDistance, formatDate } from '@/services/format';
+import { Header } from '@/components/layout/Header';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ImageViewer } from '@/components/ui/ImageViewer';
+import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+
+export default function FreightDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { showAlert } = useAlert();
+  const { requests, drivers, applications, applyToFreight } = useApp();
+  const [viewerVisible, setViewerVisible] = useState(false);
+
+  const request = requests.find((r) => r.id === id);
+  if (!request) {
+    return (
+      <View style={styles.screen}>
+        <Header title="تفاصيل الحمولة" showBack />
+        <EmptyState title="الحمولة غير متوفرة" />
+      </View>
+    );
+  }
+
+  const currentDriver = drivers[0];
+  const alreadyApplied = applications.some((a) => a.freightId === request.id && a.driverId === currentDriver.id);
+
+  const apply = () => {
+    applyToFreight(request.id, currentDriver.id);
+    showAlert('تم التقديم', 'تم إرسال طلبك للتاجر. سيتم إشعارك عند القبول.', [
+      { text: 'حسناً', onPress: () => router.back() },
+    ]);
+  };
+
+  const InfoRow = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
+    <View style={styles.infoRow}>
+      <MaterialCommunityIcons name={icon as any} size={18} color={colors.primary} />
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value}</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.screen}>
+      <View style={styles.headerWrap}>
+        <Header title="تفاصيل الحمولة" showBack />
+      </View>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
+        <Pressable
+          onPress={() => setViewerVisible(true)}
+          style={({ pressed }) => [styles.heroWrap, pressed && styles.heroPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="عرض صورة البضاعة بالحجم الكامل"
+        >
+          <Image source={{ uri: request.cargoImage }} style={styles.hero} contentFit="cover" transition={200} />
+          <View style={styles.heroZoom}>
+            <MaterialIcons name="zoom-out-map" size={16} color={colors.onPrimary} />
+            <Text style={styles.heroZoomText}>عرض الصورة بالكامل</Text>
+          </View>
+        </Pressable>
+
+        <View style={styles.headRow}>
+          <Text style={styles.cargoType}>{request.cargoType}</Text>
+          <Badge label={STATUS_LABELS[request.status]} tone={STATUS_COLORS[request.status]} />
+        </View>
+        <Text style={styles.merchant}>{request.merchantName}</Text>
+
+        <View style={styles.priceCard}>
+          <Text style={styles.priceLabel}>سعر النقل</Text>
+          <Text style={styles.price}>{formatIQD(request.priceIQD)}</Text>
+        </View>
+
+        <View style={styles.routeCard}>
+          <View style={styles.routeSide}>
+            <MaterialIcons name="trip-origin" size={18} color={colors.primary} />
+            <Text style={styles.routeProv}>{request.pickupProvince}</Text>
+            <Text style={styles.routeAddr}>{request.pickupAddress || 'موقع التحميل'}</Text>
+          </View>
+          <MaterialIcons name="arrow-back" size={20} color={colors.textMuted} />
+          <View style={styles.routeSide}>
+            <MaterialIcons name="place" size={18} color={colors.emphasis} />
+            <Text style={styles.routeProv}>{request.deliveryProvince}</Text>
+            <Text style={styles.routeAddr}>{request.deliveryAddress || 'موقع التسليم'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <InfoRow icon="truck" label="المركبة المطلوبة" value={vehicleLabel(request.vehicleType)} />
+          <View style={styles.divider} />
+          <InfoRow icon="weight" label="وزن الحمولة" value={formatWeight(request.weightTons)} />
+          <View style={styles.divider} />
+          <InfoRow icon="map-marker-distance" label="المسافة" value={formatDistance(request.distanceKm)} />
+          <View style={styles.divider} />
+          <InfoRow icon="calendar" label="تاريخ التحميل" value={formatDate(request.pickupDate)} />
+        </View>
+
+        {request.cargoDescription ? (
+          <View style={styles.card}>
+            <Text style={styles.blockTitle}>وصف الحمولة</Text>
+            <Text style={styles.blockText}>{request.cargoDescription}</Text>
+          </View>
+        ) : null}
+
+        {request.notes ? (
+          <View style={styles.card}>
+            <Text style={styles.blockTitle}>ملاحظات التاجر</Text>
+            <Text style={styles.blockText}>{request.notes}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
+        <Button
+          title={alreadyApplied ? 'تم التقديم على هذه الحمولة' : 'تقديم على هذه الحمولة'}
+          variant="emphasis"
+          disabled={alreadyApplied}
+          onPress={apply}
+        />
+      </View>
+
+      <ImageViewer visible={viewerVisible} uri={request.cargoImage} onClose={() => setViewerVisible(false)} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
+  headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  content: { padding: spacing.md },
+  heroWrap: { position: 'relative' },
+  heroPressed: { opacity: 0.95 },
+  hero: { width: '100%', height: 200, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
+  heroZoom: { position: 'absolute', bottom: spacing.sm, left: spacing.sm, flexDirection: 'row-reverse', alignItems: 'center', gap: 4, backgroundColor: 'rgba(10,10,12,0.5)', paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radius.pill },
+  heroZoomText: { ...typography.caption, color: colors.onPrimary },
+  headRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
+  cargoType: { ...typography.title, color: colors.text },
+  merchant: { ...typography.body, color: colors.textSubtle, textAlign: 'right', marginTop: 2 },
+  priceCard: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surfaceTint, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.md },
+  priceLabel: { ...typography.label, color: colors.textSubtle },
+  price: { ...typography.title, color: colors.primary },
+  routeCard: { flexDirection: 'row-reverse', alignItems: 'flex-start', justifyContent: 'space-between', backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md, ...shadow.card },
+  routeSide: { flex: 1, alignItems: 'center' },
+  routeProv: { ...typography.bodyStrong, color: colors.text, marginTop: 4 },
+  routeAddr: { ...typography.caption, color: colors.textSubtle, textAlign: 'center', marginTop: 2 },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md, ...shadow.card },
+  infoRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.sm },
+  infoLabel: { ...typography.body, color: colors.textSubtle, flex: 1, textAlign: 'right' },
+  infoValue: { ...typography.bodyStrong, color: colors.text },
+  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
+  blockTitle: { ...typography.label, color: colors.primary, textAlign: 'right', marginBottom: spacing.xs },
+  blockText: { ...typography.body, color: colors.text, textAlign: 'right', lineHeight: 26 },
+  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, padding: spacing.md, borderTopWidth: 1, borderTopColor: colors.border },
+});
