@@ -1,68 +1,92 @@
 # BAZGO booking verification
 
-## Implementation boundaries
-- Existing local demo screens/data remain separate. They do not represent server bookings.
-- Secure mode uses real email/password sessions. Registration uses the configured four-digit email OTP; local six-digit phone OTP remains explicitly demo-only.
-- Account roles are fixed server-side. Booking is disabled unless autonomous server expiry scheduling is verified.
-- pg_cron runs `public.bazgo_expiry_tick()` in this application's database every 10 seconds (one-minute fallback on older pg_cron). The server deadline is exactly 15 minutes: every command checks it after acquiring the load lock. A server snapshot projects an overdue reservation as expired even if physical cleanup is briefly delayed.
-- Expiry does not depend on an open app. Database changes/notifications are normally delivered to open screens via three-second polling; no unsupported Realtime or background push is claimed.
-- Private voice messages are limited to 60 seconds / 5 MB, use private Storage and five-minute signed playback URLs. Native recording requires a fresh build after adding microphone permission.
-- Ratings are optional, one per participant per delivered trip, 1–5 stars with an optional comment, and no points/bonuses.
+## Current deployment status
 
-## Checks performed during implementation
-- Database schema and RPC creation completed successfully.
-- All seven marketplace tables have RLS enabled.
-- Anonymous reservation calls are denied by function grants.
-- Authenticated clients cannot insert bookings directly or call expiry helpers.
-- The partial unique index permits only one active negotiation/booking for each load.
-- Snapshot query contract executed successfully with an isolated read-only identity.
-- Existing database inspection found zero duplicate live bookings.
+The application scheduler-verification migration and least-privileged worker login are applied. **The administration-database cron job and worker authentication still need provider setup. No autonomous expiry or complete booking-flow test has been executed successfully in this editor.** Booking safety checks intentionally remain enabled and fail closed.
 
-## Not yet verified in this editor
-There is no command runner or authenticated multi-device session in this editor. The integration tests below were added but have not been executed. The scheduler Edge Function is deployed when the session's code changes take effect; its bootstrap and an actual cron run must be verified. Do not consider the concurrency, full 15-minute expiry, voice permission/playback, or installed-device tests passed until they are run.
+Exact observations, provisioning scripts, database permissions and administrator verification queries: `docs/BOOKING_SCHEDULER.md`.
 
-## Automated integration tests
-Use a disposable OnSpace Cloud project and three dedicated, verified real accounts: one merchant and two drivers. Tests create labeled test loads through normal authenticated APIs; they never shorten the production timer or bypass booking locks. They do not delete fixtures. Manage cleanup in Cloud → Data.
+## Architecture and safeguards
 
-Set these local environment variables (never commit credentials):
-- TEST_BACKEND_URL
-- TEST_ANON_KEY
-- TEST_MERCHANT_EMAIL / TEST_MERCHANT_PASSWORD
-- TEST_DRIVER_A_EMAIL / TEST_DRIVER_A_PASSWORD
-- TEST_DRIVER_B_EMAIL / TEST_DRIVER_B_PASSWORD
+- Local demo data is separate and never represents a server booking.
+- Secure mode requires a real authenticated merchant/driver account with immutable role.
+- Accept Load verifies the read-only Edge scheduler probe, then the reservation RPC independently rechecks fresh recurring worker heartbeats.
+- A dedicated database login runs `public.bazgo_expiry_tick()` through pg_cron in the app database. Two ticks 5–90 seconds apart and the latest under two minutes old are required.
+- No migration, app, service-role API or normal database `SET ROLE` may manufacture readiness. No device timer releases a booking.
+- pg_cron cadence is 10 seconds with one-minute fallback only for unsupported seconds syntax. The negotiation deadline remains exactly 15 minutes and is checked after row locking on server commands.
+- Expiry atomically releases the temporary reservation, clears the active negotiation pointer and notifies both participants. Confirmed bookings are not expired.
+- Load-first row locking and the partial unique index prevent duplicate live bookings. Snapshot polling is three seconds; it is not an autonomous scheduler.
+- Voice attachments remain participant-private, at most 60 seconds/5 MB. Ratings remain optional, one per participant after delivery, 1–5 stars, optional comment and no rewards.
 
-Run:
+## Live checks passed during this session
+
+- Application scheduler migration executed successfully.
+- `bazgo_scheduler_status()` returns `ready=false`, `missing_heartbeat`, zero verified ticks when no job has run.
+- Missing scheduler blocks a reservation attempt on a nonexistent load without creating user data.
+- A non-worker database session cannot run the heartbeat tick.
+- Anonymous users cannot reserve; authenticated users cannot call expiry tick, status, or unlocked reservation helper.
+- Edge service role can inspect status, not execute tick; worker can execute tick, not insert bookings.
+- Existing booking unique index, row locks, RLS and exact 15-minute interval remain in place. No duplicate live bookings found.
+
+## Not verified
+
+The SQL editor connects only to the application database, not `postgres`. No command runner or authenticated three-user/device session is available. pg_cron administration job existence/run logs, worker authentication, recurring real ticks, successful acceptance, genuine network concurrency, cancellation/confirmation races and full unattended cleanup remain pending. Test files are provided, **not reported as executed**.
+
+## Automated tests
+
+Use a disposable OnSpace Cloud test project with three dedicated, verified real accounts. Apply the existing marketplace schema, the scheduler-verification migration and provider administration setup before enabled-scheduler tests. Never modify production reservations for testing. Tests create labeled loads through normal authenticated APIs and do not shorten server deadlines or delete fixtures; manage cleanup through Cloud → Data.
+
+Set local variables, never commit passwords or keys:
+
+- `TEST_BACKEND_URL`, `TEST_ANON_KEY`
+- `TEST_MERCHANT_EMAIL`, `TEST_MERCHANT_PASSWORD`
+- `TEST_DRIVER_A_EMAIL`, `TEST_DRIVER_A_PASSWORD`
+- `TEST_DRIVER_B_EMAIL`, `TEST_DRIVER_B_PASSWORD`
+
+Run normal booking and unattended heartbeat tests:
+
 ```sh
 deno test --allow-env --allow-net tests/booking.integration.test.ts
 ```
-Enable the genuine autonomous-expiry test (about 17 minutes):
+
+Run the actual 15-minute no-polling expiry test (approximately 17 minutes):
+
 ```sh
 TEST_FULL_EXPIRY=true deno test --allow-env --allow-net tests/booking.integration.test.ts
 ```
-Scenarios: simultaneous drivers, same-driver retry, unauthorized confirmation/cancellation/chat, early cancellation, rebooking, stale price proposal, confirmed-booking exclusion, text retry deduplication, forged audio attachment, transport/delivery permissions, 1/5-star ratings, invalid/duplicate ratings, concurrent confirmation vs cancellation, unattended expiry, late confirmation rejection.
 
-## Scheduler administration fallback
-The `bazgo-scheduler` Edge Function reads only preconfigured server secrets. It installs pg_cron in the `postgres` administration database, registers one fixed job in the application database, and waits for a real cron heartbeat before allowing reservations. It never fabricates readiness. If the workspace database role cannot access `postgres`, an administrator must run:
-```sql
--- Run in the postgres administration database, with the application's privileged database role.
-create extension if not exists pg_cron;
-select cron.schedule_in_database(
-  'bazgo-expire-negotiations',
-  '10 seconds',
-  'select public.bazgo_expiry_tick()',
-  'vshyveaykgkhngwyvshy'
-);
+Run fail-closed checks while a disposable project's scheduler is missing/stale:
+
+```sh
+TEST_EXPECT_SCHEDULER_BLOCKED=true deno test --allow-env --allow-net tests/booking.integration.test.ts
 ```
-Use `* * * * *` instead of `10 seconds` for an older cron version. Verify `cron.job.active`, then inspect `cron.job_run_details` and `public.bazgo_runtime.checked_at` in the application database. A stale/missing readiness heartbeat fails closed: drivers cannot reserve loads.
 
-## Device/manual checklist
-1. Merchant publishes a load; both driver devices see Available and its initial IQD price.
-2. Tap Accept Load simultaneously. Only one driver gets a reservation and auto-opened direct chat; the other sees a clear server rejection.
-3. Reload/restart the winning driver's app: the same chat/deadline is restored; remaining time does not restart.
-4. Send text and actual microphone audio from both devices. Grant/deny microphone permission; retry an interrupted upload; ensure other accounts cannot read the private media.
-5. Agree on a price. Driver submits it; merchant clicks Confirm Final Agreement. Both see the same saved final price and Confirmed status.
-6. Cancel before confirmation from either party. Both see cancellation notifications; the load becomes Available, and another driver can reserve it.
-7. Leave both apps closed for 15 minutes. Inspect the raw load table after the cron cleanup interval, before calling a snapshot: it must be Available. Late confirmation must fail.
-8. Repeat cancellation vs confirmation at the same moment and verify exactly one outcome. Retry confirm after a network interruption and inspect that there is still one booking.
-9. Driver starts transport; merchant confirms receipt. Both can optionally rate each other, or leave without rating. Invalid/duplicate ratings fail; no reward points appear.
-10. Run on installed iOS/Android builds and web over HTTPS. Check poor connectivity, background/resume, rotation, and keyboard layouts.
+Without credentials the tests are skipped; a skipped suite is NOT a passed verification. Set the blocked-scheduler flag only when missing/stale readiness is deliberately expected.
+
+Coverage:
+
+1. Read-only probe checks two valid ticks; after 75 seconds of no snapshots/tick calls, heartbeat must advance.
+2. Simultaneous acceptance by two real drivers: exactly one wins; winner's retry reuses the same negotiation and 15-minute deadline.
+3. Reject unauthorized cancellation/chat/confirmation, confirmation before proposal, changed proposals and pre-delivery ratings.
+4. Early cancellation releases load; previously losing driver can rebook.
+5. Merchant final confirmation stores the agreed price, confirms booking and excludes competing drivers.
+6. Concurrent confirmation/cancellation yields exactly one terminal transition.
+7. Text retry deduplication, forged voice-path rejection, transport/delivery permissions and optional 1–5-star ratings.
+8. Full unattended expiry: inspect raw load/negotiation/notification tables BEFORE any snapshot; prove load availability, null reservation pointer, timeout reason, ended timestamp and notifications for both parties; reject late confirmation and permit rebooking.
+9. Missing/stale scheduler rejected both by Edge and by the reservation RPC without creating a fixture.
+
+## Administrator outage test
+
+Only in a disposable project, deactivate its job with `cron.alter_job(jobid, active := false)`. Wait until the heartbeat is at least two minutes old. Confirm both readiness probe and reservation RPC refuse booking; existing reservations stay subject to deadline checks. Reactivate the job, require two successful autonomous runs and repeat acceptance. Never edit `bazgo_runtime.ready` or manually call a tick to simulate recovery.
+
+## Device checklist after all server tests pass
+
+- Publish a load as merchant; drivers see Available and initial IQD price.
+- Accept simultaneously on two devices; winning driver automatically opens direct chat; losing driver sees a clear rejection.
+- Restart the winning device; same deadline/chat restored, timer never restarts.
+- Send actual microphone audio/text from both parties; test permissions, interrupted upload and private playback on installed iOS/Android builds.
+- Driver proposes price; merchant confirms final agreement; both see identical saved price/status.
+- Cancel before confirmation as each role in separate tests, then rebook.
+- Close all apps for the real deadline plus job cadence; inspect raw rows before reopening.
+- Driver starts transport, merchant confirms delivery; each can rate or skip without rewards.
+- Check poor connectivity, background/resume, rotation, keyboard handling and duplicate network retries.

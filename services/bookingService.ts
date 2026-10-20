@@ -13,23 +13,22 @@ export async function marketRpc<T>(name: string, args: Record<string, unknown> =
   if (data?.error) throw new Error(data.error);
   return data as T;
 }
-let schedulerReady: Promise<void> | null = null;
-export function ensureServerScheduler(): Promise<void> {
-  if (!schedulerReady) schedulerReady = (async () => {
-    const { data, error } = await getSupabaseClient().functions.invoke('bazgo-scheduler', { body: {} });
-    if (error) {
-      let message = error.message;
-      if (error instanceof FunctionsHttpError) {
-        try {
-          const details = await error.context.text();
-          try { message = JSON.parse(details).error ?? details; } catch { message = details; }
-        } catch { /* Preserve original error. */ }
-      }
-      throw new Error(`Server expiry scheduler: ${message}`);
+// Verify on every acceptance, including after logout/login or scheduler outages.
+// Never cache a successful readiness response indefinitely. The reservation RPC
+// independently rechecks the database heartbeat before acquiring the booking.
+export async function ensureServerScheduler(): Promise<void> {
+  const { data, error } = await getSupabaseClient().functions.invoke('bazgo-scheduler', { body: {} });
+  if (error) {
+    let message = error.message;
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const details = await error.context.text();
+        try { message = JSON.parse(details).error ?? details; } catch { message = details; }
+      } catch { /* Preserve original error. */ }
     }
-    if (!data?.ready) throw new Error('Server expiry scheduler is not ready');
-  })().catch((error) => { schedulerReady = null; throw error; });
-  return schedulerReady;
+    throw new Error(`Server expiry scheduler: ${message}`);
+  }
+  if (!data?.ready) throw new Error('Server expiry scheduler is not ready');
 }
 export function setupMarketAccount(role: string, name: string, profile: Record<string, string> = {}) {
   return marketRpc<MarketAccount>('bazgo_setup_account', { p_role: role, p_name: name, p_profile: profile });

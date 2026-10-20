@@ -1,9 +1,10 @@
 // Run against a DISPOSABLE test project with three real test accounts.
 // deno test --allow-env --allow-net tests/booking.integration.test.ts
-import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { createClient, FunctionsHttpError, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { assert, assertEquals } from 'jsr:@std/assert@1';
 const env=(name:string)=>Deno.env.get(name)??'';
 const configured=['TEST_BACKEND_URL','TEST_ANON_KEY','TEST_MERCHANT_EMAIL','TEST_MERCHANT_PASSWORD','TEST_DRIVER_A_EMAIL','TEST_DRIVER_A_PASSWORD','TEST_DRIVER_B_EMAIL','TEST_DRIVER_B_PASSWORD'].every((key)=>!!env(key));
+const blockedExpected=env('TEST_EXPECT_SCHEDULER_BLOCKED')==='true';
 const sleep=(ms:number)=>new Promise((resolve)=>setTimeout(resolve,ms));
 async function login(prefix:string,role:string):Promise<SupabaseClient> {
   const client=createClient(env('TEST_BACKEND_URL'),env('TEST_ANON_KEY'),{auth:{persistSession:false,autoRefreshToken:false}});
@@ -27,12 +28,52 @@ async function expectDenied(client:SupabaseClient,id:string,action:string,value:
   const response=await client.rpc('bazgo_negotiation_action',{p_id:id,p_action:action,p_value:value});
   assert(!!response.error||!!response.data?.error,`Expected ${action} to be rejected`);
 }
-async function initialize(merchant:SupabaseClient) {
-  const {data,error}=await merchant.functions.invoke('bazgo-scheduler',{body:{}});
-  if(error)throw error;
+async function schedulerProbe(client:SupabaseClient,expectedBlocked=false) {
+  const {data,error}=await client.functions.invoke('bazgo-scheduler',{body:{}});
+  if(error) {
+    if(error instanceof FunctionsHttpError) {
+      const status=error.context.status;
+      const text=await error.context.text();
+      let details:any;
+      try { details=JSON.parse(text); } catch { throw new Error(`Scheduler HTTP ${status}: ${text}`); }
+      if(expectedBlocked) {
+        assertEquals(status,503);assertEquals(details.ready,false);
+        assert(details.code&&details.code!=='verified');return details;
+      }
+      throw new Error(`Scheduler HTTP ${status}: ${details.error??text}`);
+    }
+    throw error;
+  }
+  if(expectedBlocked)throw new Error('Unverified scheduler unexpectedly allowed booking');
   assertEquals(data?.ready,true,'Autonomous expiry must be configured before any booking test');
+  assertEquals(data.reason,'verified');assertEquals(data.verifiedTicks,2);
+  const current=new Date(data.checkedAt).getTime(),previous=new Date(data.previousCheckedAt).getTime();
+  const server=new Date(data.serverNow).getTime();
+  assert(Number.isFinite(current)&&Number.isFinite(previous));
+  assert(current-previous>=5000&&current-previous<=90000,'Two real scheduled ticks required');
+  assert(server-current>=0&&server-current<120000,'Heartbeat must be fresh');
+  return data;
 }
-Deno.test({name:'Secure booking: concurrent acceptance, cancellation, confirmation, chat, delivery and optional ratings',ignore:!configured,fn:async()=>{
+async function initialize(merchant:SupabaseClient) { return schedulerProbe(merchant); }
+Deno.test({name:'Read-only scheduler probes verify recurring ticks with no app snapshots or tick calls',ignore:!configured||blockedExpected,sanitizeResources:false,sanitizeOps:false,fn:async()=>{
+  const merchant=await login('MERCHANT','merchant');
+  const first=await schedulerProbe(merchant);
+  // A read-only probe must not create heartbeats. A real background worker is
+  // the only permitted login; verify that it runs again while clients are idle.
+  await sleep(75000);
+  const next=await schedulerProbe(merchant);
+  assert(new Date(next.checkedAt).getTime()>new Date(first.checkedAt).getTime(),'Heartbeat must advance autonomously');
+  await merchant.auth.signOut();
+}});
+Deno.test({name:'Unverified scheduler is rejected by both Edge and reservation RPC without creating a fixture',ignore:!configured||!blockedExpected,fn:async()=>{
+  const a=await login('DRIVER_A','driver');
+  await schedulerProbe(a,true);
+  const attempt=await a.rpc('bazgo_reserve_load',{p_load_id:crypto.randomUUID()});
+  assert(attempt.error,'Missing/stale scheduler must fail closed');
+  assert(attempt.error.message.toLowerCase().includes('scheduler'),'Must reject at the scheduler guard');
+  await a.auth.signOut();
+}});
+Deno.test({name:'Secure booking: concurrent acceptance, cancellation, confirmation, chat, delivery and optional ratings',ignore:!configured||blockedExpected,fn:async()=>{
   const merchant=await login('MERCHANT','merchant');
   const a=await login('DRIVER_A','driver');
   const b=await login('DRIVER_B','driver');
@@ -98,7 +139,7 @@ Deno.test({name:'Secure booking: concurrent acceptance, cancellation, confirmati
   assertEquals(raceSnapshot.loads.find((l:any)=>l.id===raceLoad).status,raceState==='confirmed'?'confirmed':'available');
   await Promise.all([merchant,a,b].map((client)=>client.auth.signOut()));
 }});
-Deno.test({name:'Autonomous 15-minute expiry with no app polling, then rebooking and late-confirmation rejection',ignore:!configured||env('TEST_FULL_EXPIRY')!=='true',sanitizeResources:false,sanitizeOps:false,fn:async()=>{
+Deno.test({name:'Autonomous 15-minute expiry with no app polling, then rebooking and late-confirmation rejection',ignore:!configured||blockedExpected||env('TEST_FULL_EXPIRY')!=='true',sanitizeResources:false,sanitizeOps:false,fn:async()=>{
   const merchant=await login('MERCHANT','merchant'),a=await login('DRIVER_A','driver'),b=await login('DRIVER_B','driver');
   await initialize(merchant);
   const loadId=await createLoad(merchant);
@@ -109,6 +150,16 @@ Deno.test({name:'Autonomous 15-minute expiry with no app polling, then rebooking
   const raw=await merchant.from('bazgo_loads').select('status,active_negotiation_id').eq('id',loadId).single();
   if(raw.error)throw raw.error;
   assertEquals(raw.data.status,'available');assertEquals(raw.data.active_negotiation_id,null);
+  const expired=await merchant.from('bazgo_negotiations').select('status,cancellation_reason,ended_at').eq('id',n.id).single();
+  if(expired.error)throw expired.error;
+  assertEquals(expired.data.status,'expired');assertEquals(expired.data.cancellation_reason,'timeout');assert(expired.data.ended_at);
+  // Inspect raw RLS-protected notification tables before any snapshot can run
+  // lazy cleanup, proving the scheduled transaction notified both participants.
+  for(const participant of [merchant,a]) {
+    const notices=await participant.from('bazgo_notifications').select('title').eq('negotiation_id',n.id);
+    if(notices.error)throw notices.error;
+    assert(notices.data.some((notice:any)=>notice.title.includes('انتهى وقت')),'Both participants must receive expiry notification');
+  }
   await expectDenied(merchant,n.id,'confirm',{price:100000});
   const next=await rpc(b,'bazgo_reserve_load',{p_load_id:loadId});assert(next.id!==n.id);
   await rpc(b,'bazgo_negotiation_action',{p_id:next.id,p_action:'cancel'});
