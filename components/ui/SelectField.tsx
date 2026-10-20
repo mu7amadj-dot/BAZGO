@@ -9,25 +9,26 @@ import { colors, layout, radius, spacing, typography, shadow } from '@/constants
 export interface SelectItem { id: string; label: string; icon?: string; meta?: string; }
 interface SelectFieldProps {
   label: string; placeholder?: string; items: SelectItem[]; selectedId?: string;
-  onSelect: (id: string) => void; title?: string; compact?: boolean; icon?: string;
+  onSelect: (id: string) => void; title?: string; compact?: boolean; icon?: string; variant?: 'field' | 'filter';
 }
-export const SelectField = memo(function SelectField({ label, placeholder = 'اختر', items, selectedId, onSelect, title, compact = false, icon }: SelectFieldProps) {
+export const SelectField = memo(function SelectField({ label, placeholder = 'اختر', items, selectedId, onSelect, title, compact = false, icon, variant = 'field' }: SelectFieldProps) {
   const insets = useSafeAreaInsets();
   const { height } = useViewport();
   const [open, setOpen] = useState(false);
   const selected = items.find((item) => item.id === selectedId);
+  const isFilter = variant === 'filter';
   const choose = useCallback((id: string) => { onSelect(id); setOpen(false); }, [onSelect]);
   return (
-    <View style={styles.wrap}>
-      {!compact ? <Text style={styles.label}>{label}</Text> : null}
-      <Pressable style={({ pressed }) => [styles.trigger, compact ? styles.compactTrigger : null, open ? styles.triggerOpen : null, pressed ? styles.pressed : null]}
+    <View style={[styles.wrap, isFilter ? styles.filterWrap : null]}>
+      {!compact && !isFilter ? <Text style={styles.label}>{label}</Text> : null}
+      <Pressable style={({ pressed }) => [styles.trigger, compact ? styles.compactTrigger : null, isFilter ? styles.filterTrigger : null, open ? styles.triggerOpen : null, pressed ? styles.pressed : null]}
         onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel={`${label}: ${selected?.label ?? placeholder}`} accessibilityState={{ expanded: open }}>
-        <View style={compact ? styles.insetIcon : null}><MaterialCommunityIcons name={(icon ?? selected?.icon ?? 'format-list-bulleted') as any} size={24} color={colors.textSubtle} /></View>
-        <View style={styles.triggerTextWrap}>
-          {compact ? <Text style={styles.insetLabel}>{label}</Text> : null}
-          <Text style={[styles.triggerText, selected ? null : styles.triggerPlaceholder]} numberOfLines={1}>{selected?.label ?? placeholder}</Text>
+        {!isFilter ? <View style={compact ? styles.insetIcon : null}><MaterialCommunityIcons name={(icon ?? selected?.icon ?? 'format-list-bulleted') as any} size={24} color={colors.textSubtle} /></View> : null}
+        <View style={[styles.triggerTextWrap, isFilter ? styles.filterTextWrap : null]}>
+          {compact && !isFilter ? <Text style={styles.insetLabel}>{label}</Text> : null}
+          <Text style={[styles.triggerText, selected ? null : styles.triggerPlaceholder, isFilter ? styles.filterText : null]} numberOfLines={1}>{selected?.label ?? placeholder}</Text>
         </View>
-        <MaterialCommunityIcons name="chevron-down" size={24} color={colors.textSubtle} />
+        <MaterialCommunityIcons name="chevron-down" size={isFilter ? 20 : 24} color={isFilter ? colors.primary : colors.textSubtle} />
       </Pressable>
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)} statusBarTranslucent>
         <View style={styles.backdrop}>
@@ -64,6 +65,10 @@ export const SelectField = memo(function SelectField({ label, placeholder = 'ا�
 });
 const styles = StyleSheet.create({
   wrap: { marginBottom: spacing.sm },
+  filterWrap: { marginBottom: 0, maxWidth: '45%', flexShrink: 1 },
+  filterTrigger: { minHeight: layout.touchTarget, paddingHorizontal: spacing.sm, gap: spacing.xs, borderRadius: radius.sm },
+  filterTextWrap: { flex: 0, flexShrink: 1 },
+  filterText: { ...typography.label, color: colors.primary },
   label: { ...typography.label, color: colors.textSubtle, textAlign: 'right', marginBottom: spacing.xs },
   trigger: { flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, minHeight: 56 },
   compactTrigger: { minHeight: layout.controlHeight },

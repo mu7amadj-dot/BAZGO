@@ -6,6 +6,12 @@ const activeRequestStatuses: ReadonlySet<RequestStatus> = new Set<RequestStatus>
   'available', 'open', 'applications', 'selected', 'negotiating', 'confirmed', 'in_transit',
 ]);
 
+// Match either end of the freight route, consistent with the existing province filter.
+export function getDriverHomeRequests(requests: FreightRequest[], province: string): FreightRequest[] {
+  if (province === 'all') return requests;
+  return requests.filter((request) => request.pickupProvince === province || request.deliveryProvince === province);
+}
+
 export function getActivePublishedRequests(requests: FreightRequest[]): FreightRequest[] {
   return requests
     .filter((request) => activeRequestStatuses.has(request.status))

@@ -10,6 +10,7 @@ import { useViewport } from '@/hooks/useViewport';
 import { BrandMark } from '@/components/feature/BrandMark';
 import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SelectField } from '@/components/ui/SelectField';
 import { FreightCard } from '@/components/feature/FreightCard';
 import { FreightRequest } from '@/services/types';
 import { colors, layout, radius, spacing, typography } from '@/constants/theme';
@@ -18,10 +19,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const { width } = useViewport();
-  const { isMerchant, matchedIds, featuredRequests } = useFreightOverview();
+  const { isMerchant, matchedIds, featuredRequests, province, setProvince, provinceItems, provinceLabel } = useFreightOverview();
   const columns = width >= layout.tabletBreakpoint ? 2 : 1;
   const createRequest = useCallback(() => router.push('/create-request'), [router]);
-  const openRequests = useCallback(() => router.push('/(tabs)/requests'), [router]);
   const sharedTransport = useCallback(() => showAlert('النقل المشترك', 'ميزة إيجاد شاحنة بمساحة فارغة على نفس المسار قادمة قريباً في BAZGO.'), [showAlert]);
   const openFreight = useCallback((id: string) => router.push(isMerchant ? `/applicants/${id}` : `/freight/${id}`), [isMerchant, router]);
   const renderItem = useCallback(({ item }: { item: FreightRequest }) => (
@@ -33,7 +33,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <FlatList key={`home-${columns}`} data={featuredRequests} numColumns={columns} keyExtractor={(request) => request.id}
         style={styles.list} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} renderItem={renderItem}
-        ListEmptyComponent={<EmptyState title={isMerchant ? 'لا توجد طلبات منشورة فعالة' : 'لا توجد حمولات بعد'} subtitle={isMerchant ? 'انشر حمولة جديدة عبر «اطلب ناقل». لا تظهر هنا الطلبات المسلّمة أو المكتملة أو الملغاة.' : 'ستظهر الحمولات المنشورة هنا.'} />}
+        ListEmptyComponent={<EmptyState title={isMerchant ? 'لا توجد طلبات منشورة فعالة' : province === 'all' ? 'لا توجد حمولات بعد' : 'لا توجد حمولات مطابقة'} subtitle={isMerchant ? 'انشر حمولة جديدة عبر «اطلب ناقل». لا تظهر هنا الطلبات المسلّمة أو المكتملة أو الملغاة.' : province === 'all' ? 'ستظهر الحمولات المنشورة هنا.' : `لا توجد حمولات للتحميل أو التفريغ في ${provinceLabel}. اختر محافظة أخرى أو «عرض الكل».`} />}
         ListHeaderComponent={
           <View>
             <MarketConnectionBanner />
@@ -59,8 +59,9 @@ export default function HomeScreen() {
             ) : null}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>{isMerchant ? 'طلباتي المنشورة الفعالة' : 'حمولات مقترحة لك'}</Text>
-              {!isMerchant ? <Pressable onPress={openRequests} style={({ pressed }) => [styles.seeAllButton, pressed ? styles.pressed : null]} accessibilityRole="button" accessibilityLabel="عرض كل الطلبات"><Text style={styles.seeAll}>عرض الكل</Text></Pressable> : null}
+              {!isMerchant ? <SelectField label="فلترة حسب المحافظة" title="فلترة الحمولات حسب المحافظة" items={provinceItems} selectedId={province} onSelect={setProvince} variant="filter" /> : null}
             </View>
+            {!isMerchant ? <Text style={styles.filterSummary}>{provinceLabel} · {featuredRequests.length} حمولة{province !== 'all' ? ' · تحميل أو تفريغ' : ''}</Text> : null}
           </View>
         } />
     </SafeAreaView>
@@ -80,11 +81,9 @@ const styles = StyleSheet.create({
   actionSubtitle: { ...typography.caption, color: colors.textSubtle, textAlign: 'center' },
   primaryText: { color: colors.onPrimary },
   actionPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
-  sectionHeader: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginVertical: spacing.sm },
-  sectionTitle: { ...typography.section, color: colors.text },
-  seeAllButton: { minHeight: layout.touchTarget, minWidth: layout.touchTarget, alignItems: 'center', justifyContent: 'center' },
-  seeAll: { ...typography.label, color: colors.primary },
+  sectionHeader: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, marginVertical: spacing.sm },
+  sectionTitle: { ...typography.section, color: colors.text, flexShrink: 1, textAlign: 'right' },
+  filterSummary: { ...typography.caption, color: colors.textSubtle, textAlign: 'right', marginBottom: spacing.md },
   item: { flex: 1, minWidth: 0 },
   twoColumns: { paddingHorizontal: spacing.xs, maxWidth: '50%' },
-  pressed: { opacity: 0.8 },
 });
