@@ -29,7 +29,8 @@
         "resizeMode": "contain",
         "backgroundColor": "#0B1C2C"
       }],
-      "expo-web-browser"
+      "expo-web-browser",
+      ["expo-av", { "microphonePermission": "Allow BAZGO to record voice messages for your freight negotiation." }]
     ],
     "experiments": { "typedRoutes": true }
   }

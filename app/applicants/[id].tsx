@@ -12,6 +12,7 @@ import { formatIQD } from '@/services/format';
 import { Header } from '@/components/layout/Header';
 import { Badge } from '@/components/ui/Badge';
 import { DriverCard } from '@/components/feature/DriverCard';
+import { NegotiationManager } from '@/components/feature/NegotiationManager';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
@@ -50,6 +51,11 @@ export default function ApplicantsScreen() {
       </View>
     );
   }
+
+  if (request.serverBacked) return <View style={styles.screen}>
+    <Header title="إدارة الحمولة" subtitle={`${request.pickupProvince} ← ${request.deliveryProvince}`} showBack />
+    <ScrollView style={styles.screen} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.lg }]}><NegotiationManager loadId={request.id} /></ScrollView>
+  </View>;
 
   const accept = (driverId: string) => {
     showAlert('قبول السائق', 'سيتم تأكيد النقل مع هذا السائق ورفض باقي العروض.', [

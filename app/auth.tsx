@@ -4,6 +4,8 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRegistration } from '@/hooks/useRegistration';
+import { useRouter, Redirect } from 'expo-router';
+import { useBooking } from '@/hooks/useBooking';
 import { BrandMark } from '@/components/feature/BrandMark';
 import { AccountTypePicker } from '@/components/feature/AccountTypePicker';
 import { Field } from '@/components/ui/Field';
@@ -13,9 +15,12 @@ import { Button } from '@/components/ui/Button';
 import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 
 export default function AuthScreen() {
+  const router = useRouter();
+  const booking = useBooking();
   const { selectedRole, setSelectedRole, mode, toggleMode, form, setField, provinceItems, vehicleItems, proceed, close } = useRegistration();
   const isMerchant = selectedRole === 'merchant';
   const isRegister = mode === 'register';
+  if (booking.authenticated) return <Redirect href={booking.account ? '/' : '/login'} />;
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -27,6 +32,8 @@ export default function AuthScreen() {
               </Pressable>
               <BrandMark />
             </View>
+            <View style={styles.action}><Button title="دخول آمن للحجز والتفاوض" onPress={() => router.push('/login')} /></View>
+            <Text style={styles.chooseHint}>أو استكشف النسخة التجريبية أدناه</Text>
             <AccountTypePicker selectedRole={selectedRole} onSelect={setSelectedRole} />
             {selectedRole ? (
               <View style={styles.form}>

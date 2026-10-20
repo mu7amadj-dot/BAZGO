@@ -23,6 +23,8 @@ export interface DriverProfile {
 }
 
 export type RequestStatus =
+  | 'available'
+  | 'negotiating'
   | 'open'
   | 'applications'
   | 'selected'
@@ -57,6 +59,9 @@ export interface Application {
 
 export interface FreightRequest {
   id: string;
+  merchantId?: string;
+  activeNegotiationId?: string | null;
+  serverBacked?: boolean;
   merchantName: string;
   merchantRating: number;
   pickupProvince: string;
@@ -83,6 +88,8 @@ export interface Message {
   id: string;
   conversationId: string;
   senderRole: UserRole;
+  kind?: 'text' | 'voice';
+  audioPath?: string;
   text: string;
   createdAt: number;
 }

@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
+import { useProfileSave } from '@/hooks/useProfileSave';
 import { useAlert } from '@/template';
 import { PROVINCES } from '@/constants/config';
 import { Field } from '@/components/ui/Field';
@@ -16,6 +17,7 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
+  const secureProfile = useProfileSave();
   const {
     role, merchantName, driverName, merchantProfile, driverProfile,
     setNames, setMerchantProfile, setDriverProfile,
@@ -33,10 +35,19 @@ export default function EditProfileScreen() {
 
   const provinceItems = useMemo(() => PROVINCES.map((p) => ({ id: p, label: p, icon: 'map-marker' })), []);
 
-  const save = () => {
+  const save = async () => {
+    if (secureProfile.busy) return;
     const finalName = name.trim();
     if (!finalName) {
       showAlert('الاسم مطلوب', 'يرجى إدخال الاسم قبل حفظ التغييرات.');
+      return;
+    }
+    if (secureProfile.authenticated) {
+      try {
+        const nextProfile = isMerchant ? { ...merchantProfile, companyName: companyName.trim(), location: location.trim(), province, phone: phone.trim() } : { ...driverProfile, province, phone: phone.trim() };
+        await secureProfile.saveProfile(finalName, { ...nextProfile });
+        router.back();
+      } catch (error) { showAlert('تعذر حفظ البيانات', error instanceof Error ? error.message : 'حاول مجدداً.'); }
       return;
     }
     if (isMerchant) {
@@ -89,7 +100,7 @@ export default function EditProfileScreen() {
           />
           <Field label="رقم الهاتف" value={phone} onChangeText={setPhone} placeholder="07XX XXX XXXX" keyboardType="phone-pad" />
 
-          <Button title="حفظ التغييرات" variant="emphasis" onPress={save} />
+          <Button title="حفظ التغييرات" variant="emphasis" onPress={save} loading={secureProfile.busy} />
           <Text style={styles.hint}>تُحفظ التغييرات في حسابك مباشرةً</Text>
         </ScrollView>
       </KeyboardAvoidingView>

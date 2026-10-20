@@ -9,6 +9,8 @@ import { useAlert } from '@/template';
 import { useFreightOverview } from '@/hooks/useFreightOverview';
 import { useViewport } from '@/hooks/useViewport';
 import { BrandMark } from '@/components/feature/BrandMark';
+import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { FreightCard } from '@/components/feature/FreightCard';
 import { Button } from '@/components/ui/Button';
 import { FreightRequest } from '@/services/types';
@@ -33,8 +35,10 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <FlatList key={`home-${columns}`} data={featuredRequests} numColumns={columns} keyExtractor={(request) => request.id}
         style={styles.list} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} renderItem={renderItem}
+        ListEmptyComponent={<EmptyState title="لا توجد حمولات بعد" subtitle={isMerchant ? 'انشر حمولة لبدء التفاوض مع السائقين.' : 'ستظهر الحمولات المنشورة هنا.'} />}
         ListHeaderComponent={
           <View>
+            <MarketConnectionBanner />
             {isMerchant ? (
               <>
                 <View style={styles.topbar}>

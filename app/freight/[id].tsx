@@ -7,6 +7,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAlert } from '@/template';
 import { useApp } from '@/hooks/useApp';
+import { useLoadBooking } from '@/hooks/useLoadBooking';
+import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { STATUS_LABELS, STATUS_COLORS } from '@/services/mockData';
 import { vehicleLabel } from '@/constants/config';
 import { formatIQD, formatWeight, formatDistance, formatDate } from '@/services/format';
@@ -21,7 +23,8 @@ export default function FreightDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
-  const { requests, drivers, applications, applyToFreight } = useApp();
+  const { requests } = useApp();
+  const booking = useLoadBooking(id);
 
   const request = requests.find((r) => r.id === id);
   if (!request) {
@@ -33,15 +36,7 @@ export default function FreightDetailScreen() {
     );
   }
 
-  const currentDriver = drivers[0];
-  const alreadyApplied = applications.some((a) => a.freightId === request.id && a.driverId === currentDriver.id);
-
-  const apply = () => {
-    applyToFreight(request.id, currentDriver.id);
-    showAlert('تم التقديم', 'تم إرسال طلبك للتاجر. سيتم إشعارك عند القبول.', [
-      { text: 'حسناً', onPress: () => router.back() },
-    ]);
-  };
+  const hasOwnBooking = !!booking.negotiation;
 
   const InfoRow = ({ icon, label, value }: { icon: string; label: string; value: string }) => (
     <View style={styles.infoRow}>
@@ -57,6 +52,7 @@ export default function FreightDetailScreen() {
         <Header title="تفاصيل الحمولة" showBack />
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
+        <MarketConnectionBanner />
         <Image source={{ uri: request.cargoImage }} style={styles.hero} contentFit="cover" transition={200} />
 
         <View style={styles.headRow}>
@@ -66,7 +62,7 @@ export default function FreightDetailScreen() {
         <Text style={styles.merchant}>{request.merchantName}</Text>
 
         <View style={styles.priceCard}>
-          <Text style={styles.priceLabel}>سعر النقل</Text>
+          <Text style={styles.priceLabel}>السعر الأولي للتاجر</Text>
           <Text style={styles.price}>{formatIQD(request.priceIQD)}</Text>
         </View>
 
@@ -111,10 +107,11 @@ export default function FreightDetailScreen() {
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
         <Button
-          title={alreadyApplied ? 'تم التقديم على هذه الحمولة' : 'تقديم على هذه الحمولة'}
+          title={hasOwnBooking ? 'فتح المحادثة والاتفاق' : !booking.authenticated ? 'دخول آمن لقبول الحمولة' : booking.available ? 'قبول الحمولة · Accept Load' : request.status === 'negotiating' ? 'قيد التفاوض مع سائق آخر' : 'الحمولة غير متاحة'}
           variant="emphasis"
-          disabled={alreadyApplied}
-          onPress={apply}
+          disabled={booking.authenticated && !hasOwnBooking && (!booking.available || !booking.isDriver)}
+          loading={booking.busy}
+          onPress={hasOwnBooking ? booking.openChat : booking.accept}
         />
       </View>
     </View>

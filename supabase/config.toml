@@ -1,0 +1,2 @@
+[functions.bazgo-scheduler]
+verify_jwt = false

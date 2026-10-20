@@ -10,6 +10,7 @@ import { Header } from '@/components/layout/Header';
 import { FreightCard } from '@/components/feature/FreightCard';
 import { ChipSelect } from '@/components/ui/ChipSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { colors, layout, spacing } from '@/constants/theme';
 
 export default function RequestsScreen() {
@@ -52,6 +53,7 @@ export default function RequestsScreen() {
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.filters}>
+            <MarketConnectionBanner />
             <ChipSelect items={provinceItems} selectedId={province} onSelect={setProvince} />
             {!isMerchant ? <ChipSelect items={vehicleItems} selectedId={vehicle} onSelect={setVehicle} /> : null}
           </View>

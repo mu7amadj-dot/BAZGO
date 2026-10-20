@@ -32,6 +32,7 @@ export default function CreateRequestScreen() {
   const [vehicle, setVehicle] = useState('');
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const provinceItems = useMemo(() => PROVINCES.map((p) => ({ id: p, label: p, icon: 'map-marker' })), []);
   const vehicleItems = useMemo(
@@ -42,10 +43,14 @@ export default function CreateRequestScreen() {
 
   const priceNum = parseInt(price || '0', 10);
 
-  const submit = () => {
+  const submit = async () => {
+    if (submitting) return;
     if (!pickupProvince || !deliveryProvince || !weight || !cargoType || !vehicle || !price) {
       showAlert('بيانات ناقصة', 'يرجى إكمال المحافظات والحمولة والمركبة والسعر.');
       return;
+    }
+    if (!Number.isFinite(Number(weight)) || Number(weight) <= 0 || !Number.isFinite(priceNum) || priceNum <= 0) {
+      showAlert('بيانات غير صالحة', 'أدخل وزناً وسعراً أكبر من صفر.'); return;
     }
     const req: FreightRequest = {
       id: `r${Date.now()}`,
@@ -69,10 +74,12 @@ export default function CreateRequestScreen() {
       distanceKm: 350,
       createdAt: Date.now(),
     };
-    addRequest(req);
-    showAlert('تم النشر', 'تم نشر طلب النقل على BAZGO وسيتم إشعار السائقين المطابقين.', [
-      { text: 'حسناً', onPress: () => router.replace('/(tabs)/requests') },
-    ]);
+    setSubmitting(true);
+    try {
+      await addRequest(req);
+      router.replace('/(tabs)/requests');
+    } catch (error) { showAlert('تعذر النشر', error instanceof Error ? error.message : 'حاول مجدداً.'); }
+    finally { setSubmitting(false); }
   };
 
   return (
@@ -137,7 +144,7 @@ export default function CreateRequestScreen() {
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>
-          <Button title="نشر الطلب" variant="emphasis" onPress={submit} />
+          <Button title="نشر الطلب" variant="emphasis" onPress={submit} loading={submitting} />
         </View>
       </KeyboardAvoidingView>
     </View>

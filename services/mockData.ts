@@ -4,7 +4,10 @@
 import { Driver, FreightRequest, Application, AppNotification } from './types';
 
 export const STATUS_LABELS: Record<string, string> = {
-  open: 'مفتوح',
+  available: 'متاحة',
+  negotiating: 'قيد التفاوض',
+  expired: 'انتهى التفاوض',
+  open: 'متاحة · تجريبي',
   applications: 'وصلت طلبات',
   selected: 'تم اختيار سائق',
   confirmed: 'مؤكد',
@@ -15,6 +18,9 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, 'info' | 'warning' | 'success' | 'danger'> = {
+  available: 'success',
+  negotiating: 'warning',
+  expired: 'danger',
   open: 'info',
   applications: 'warning',
   selected: 'warning',
