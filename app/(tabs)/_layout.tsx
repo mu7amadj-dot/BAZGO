@@ -4,13 +4,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Tabs from 'expo-router/tabs';
 import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '@/hooks/useApp';
 import { colors, spacing } from '@/constants/theme';
 import { FloatingTabBar } from '@/components/layout/FloatingTabBar';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-  const { role } = useApp();
 
   const tabBarStyle = {
     height: Platform.select({ ios: insets.bottom + 60, android: insets.bottom + 60, default: 70 }),
@@ -42,8 +40,8 @@ export default function TabLayout() {
         name="requests"
         options={{
           title: 'الحمولات',
-          href: role === 'merchant' ? null : '/(tabs)/requests',
-          tabBarItemStyle: role === 'merchant' ? { display: 'none' } : undefined,
+          href: null,
+          tabBarItemStyle: { display: 'none' },
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="truck-outline" size={size} color={color} />,
         }}
       />
