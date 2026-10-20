@@ -40,7 +40,7 @@ export default function HomeScreen() {
             {isMerchant ? (
               <>
                 <View style={styles.topbar}>
-                  <BrandMark compact showSlogan={false} />
+                  <BrandMark compact showSlogan={false} showIcon={false} />
                   <View style={styles.roleBadge}><MaterialCommunityIcons name="store-outline" size={18} color={colors.primary} /><Text style={styles.roleText}>تاجر</Text></View>
                 </View>
                 <View style={styles.actionsRow}>

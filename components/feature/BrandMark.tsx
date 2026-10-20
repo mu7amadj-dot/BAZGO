@@ -4,16 +4,18 @@ import { StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, spacing, typography } from '@/constants/theme';
 
-interface BrandMarkProps { compact?: boolean; showSlogan?: boolean; }
-export const BrandMark = memo(function BrandMark({ compact = false, showSlogan = true }: BrandMarkProps) {
+interface BrandMarkProps { compact?: boolean; showSlogan?: boolean; showIcon?: boolean; }
+export const BrandMark = memo(function BrandMark({ compact = false, showSlogan = true, showIcon = true }: BrandMarkProps) {
   return (
     <View style={[styles.wrap, compact ? styles.compactWrap : null]} accessibilityLabel="BAZGO، انقل بضاعتك بذكاء">
-      <View style={styles.pinWrap}>
-        <View style={styles.pinTail} />
-        <View style={styles.pinCircle}>
-          <MaterialCommunityIcons name="truck" size={32} color={colors.onEmphasis} />
+      {showIcon ? (
+        <View style={styles.pinWrap}>
+          <View style={styles.pinTail} />
+          <View style={styles.pinCircle}>
+            <MaterialCommunityIcons name="truck" size={32} color={colors.onEmphasis} />
+          </View>
         </View>
-      </View>
+      ) : null}
       <Text style={styles.wordmark}>BAZ<Text style={styles.accent}>GO</Text></Text>
       {showSlogan ? <Text style={styles.slogan}>انقل بضاعتك بذكاء</Text> : null}
     </View>
