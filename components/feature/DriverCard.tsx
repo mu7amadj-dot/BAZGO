@@ -1,8 +1,8 @@
 // Powered by OnSpace.AI
-import React from 'react';
+import React, { memo } from 'react';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Driver } from '@/services/types';
 import { vehicleLabel, vehicleIcon } from '@/constants/config';
 import { formatWeight } from '@/services/format';
@@ -19,7 +19,7 @@ interface DriverCardProps {
   accepted?: boolean;
 }
 
-export function DriverCard({ driver, reasons, onAccept, onReject, onChat, accepted }: DriverCardProps) {
+export const DriverCard = memo(function DriverCard({ driver, reasons, onAccept, onReject, onChat, accepted }: DriverCardProps) {
   return (
     <View style={styles.card}>
       <View style={styles.top}>
@@ -28,11 +28,11 @@ export function DriverCard({ driver, reasons, onAccept, onReject, onChat, accept
           <View style={styles.nameRow}>
             <Text style={styles.name}>{driver.name}</Text>
             {driver.verified ? (
-              <MaterialIcons name="verified" size={16} color={colors.info} />
+              <MaterialCommunityIcons name="check-decagram" size={16} color={colors.info} />
             ) : null}
           </View>
           <View style={styles.statRow}>
-            <MaterialIcons name="star" size={14} color={colors.emphasis} />
+            <MaterialCommunityIcons name="star" size={14} color={colors.emphasis} />
             <Text style={styles.stat}>{driver.rating.toFixed(1)}</Text>
             <Text style={styles.dot}>•</Text>
             <Text style={styles.stat}>{driver.completedTrips} رحلة</Text>
@@ -58,7 +58,7 @@ export function DriverCard({ driver, reasons, onAccept, onReject, onChat, accept
         <View style={styles.reasons}>
           {reasons.map((r) => (
             <View key={r} style={styles.reasonItem}>
-              <MaterialIcons name="check-circle" size={13} color={colors.success} />
+              <MaterialCommunityIcons name="check-circle" size={13} color={colors.success} />
               <Text style={styles.reasonText}>{r}</Text>
             </View>
           ))}
@@ -79,7 +79,7 @@ export function DriverCard({ driver, reasons, onAccept, onReject, onChat, accept
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

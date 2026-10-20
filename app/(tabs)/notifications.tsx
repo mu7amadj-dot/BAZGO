@@ -1,12 +1,12 @@
 // Powered by OnSpace.AI
 import React, { useEffect, useMemo } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useApp } from '@/hooks/useApp';
 import { timeAgo } from '@/services/format';
 import { Header } from '@/components/layout/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
 export default function NotificationsScreen() {
   const { role, notifications, markNotificationsRead } = useApp();
@@ -46,7 +46,7 @@ export default function NotificationsScreen() {
           <EmptyState
             title="لا توجد إشعارات"
             subtitle="ستظهر هنا تحديثات طلباتك ورسائلك"
-            icon={<MaterialIcons name="notifications-none" size={44} color={colors.textMuted} />}
+            icon={<MaterialCommunityIcons name="bell-outline" size={44} color={colors.textMuted} />}
           />
         }
       />
@@ -57,7 +57,7 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  list: { padding: spacing.md, paddingBottom: spacing.xxl },
+  list: { padding: spacing.md, paddingBottom: spacing.xxl, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   card: {
     flexDirection: 'row-reverse', gap: spacing.sm, backgroundColor: colors.surface,
     borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border,

@@ -1,14 +1,14 @@
 // Powered by OnSpace.AI
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
 import { useAlert } from '@/template';
 import { RoleSwitcher } from '@/components/feature/RoleSwitcher';
 import { Button } from '@/components/ui/Button';
-import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
 const MENU: { icon: string; label: string; route?: string }[] = [
   { icon: 'account-edit', label: 'تعديل بيانات الحساب', route: '/edit-profile' },
@@ -18,7 +18,6 @@ const MENU: { icon: string; label: string; route?: string }[] = [
 ];
 
 export default function ProfileScreen() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { showAlert } = useAlert();
   const { role, setRole, merchantName, driverName, merchantProfile, driverProfile } = useApp();
@@ -34,14 +33,15 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: insets.top + spacing.md }]} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
           <MaterialCommunityIcons name={isMerchant ? 'store' : 'truck'} size={34} color={colors.onPrimary} />
         </View>
         <Text style={styles.name}>{name}</Text>
         <View style={styles.verified}>
-          <MaterialIcons name="verified" size={14} color={colors.info} />
+          <MaterialCommunityIcons name="check-decagram" size={14} color={colors.info} />
           <Text style={styles.verifiedText}>{isMerchant ? 'حساب تاجر موثّق' : 'سائق موثّق'}</Text>
         </View>
         {(province || phone) ? (
@@ -93,19 +93,20 @@ export default function ProfileScreen() {
           >
             <MaterialCommunityIcons name={m.icon as any} size={22} color={colors.primary} />
             <Text style={styles.menuText}>{m.label}</Text>
-            <MaterialIcons name="chevron-left" size={22} color={colors.textMuted} />
+            <MaterialCommunityIcons name="chevron-left" size={22} color={colors.textMuted} />
           </Pressable>
         ))}
       </View>
 
       <Button title="تسجيل الخروج" variant="outline" onPress={() => router.replace('/auth')} />
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.md, paddingBottom: spacing.xxl },
+  content: { padding: spacing.md, paddingBottom: spacing.xxl, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   profileCard: { alignItems: 'center', backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.lg, ...shadow.card },
   avatar: { width: 76, height: 76, borderRadius: 38, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   name: { ...typography.title, color: colors.text, marginTop: spacing.sm },

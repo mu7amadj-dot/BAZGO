@@ -1,8 +1,8 @@
 // Powered by OnSpace.AI
-import React from 'react';
+import React, { memo } from 'react';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FreightRequest } from '@/services/types';
 import { STATUS_LABELS, STATUS_COLORS } from '@/services/mockData';
 import { vehicleLabel, vehicleIcon } from '@/constants/config';
@@ -16,12 +16,13 @@ interface FreightCardProps {
   matched?: boolean;
 }
 
-export function FreightCard({ request, onPress, matched }: FreightCardProps) {
+export const FreightCard = memo(function FreightCard({ request, onPress, matched }: FreightCardProps) {
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       accessibilityRole="button"
+      accessibilityLabel={`${request.cargoType}، من ${request.pickupProvince} إلى ${request.deliveryProvince}`}
     >
       <View style={styles.header}>
         <Image source={{ uri: request.cargoImage }} style={styles.thumb} contentFit="cover" transition={200} />
@@ -34,7 +35,7 @@ export function FreightCard({ request, onPress, matched }: FreightCardProps) {
               <Badge
                 label="مطابق لمركبتك"
                 tone="success"
-                icon={<MaterialIcons name="check-circle" size={12} color={colors.success} />}
+                icon={<MaterialCommunityIcons name="check-circle" size={12} color={colors.success} />}
               />
             ) : null}
           </View>
@@ -43,14 +44,14 @@ export function FreightCard({ request, onPress, matched }: FreightCardProps) {
 
       <View style={styles.route}>
         <View style={styles.routePoint}>
-          <MaterialIcons name="trip-origin" size={16} color={colors.primary} />
+          <MaterialCommunityIcons name="circle-outline" size={16} color={colors.primary} />
           <Text style={styles.routeText}>{request.pickupProvince}</Text>
         </View>
         <View style={styles.routeLine}>
-          <MaterialIcons name="arrow-back" size={16} color={colors.textMuted} />
+          <MaterialCommunityIcons name="arrow-left" size={16} color={colors.textMuted} />
         </View>
         <View style={styles.routePoint}>
-          <MaterialIcons name="place" size={16} color={colors.emphasis} />
+          <MaterialCommunityIcons name="map-marker-outline" size={16} color={colors.emphasis} />
           <Text style={styles.routeText}>{request.deliveryProvince}</Text>
         </View>
       </View>
@@ -65,7 +66,7 @@ export function FreightCard({ request, onPress, matched }: FreightCardProps) {
           <Text style={styles.metaText}>{formatWeight(request.weightTons)}</Text>
         </View>
         <View style={styles.metaItem}>
-          <MaterialIcons name="straighten" size={16} color={colors.textSubtle} />
+          <MaterialCommunityIcons name="map-marker-distance" size={16} color={colors.textSubtle} />
           <Text style={styles.metaText}>{formatDistance(request.distanceKm)}</Text>
         </View>
       </View>
@@ -74,12 +75,12 @@ export function FreightCard({ request, onPress, matched }: FreightCardProps) {
         <Text style={styles.price}>{formatIQD(request.priceIQD)}</Text>
         <View style={styles.viewBtn}>
           <Text style={styles.viewText}>التفاصيل</Text>
-          <MaterialIcons name="chevron-left" size={18} color={colors.primary} />
+          <MaterialCommunityIcons name="chevron-left" size={18} color={colors.primary} />
         </View>
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

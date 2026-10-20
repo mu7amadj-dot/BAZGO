@@ -2,7 +2,7 @@
 import React from 'react';
 import { Image } from 'expo-image';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAlert } from '@/template';
@@ -14,7 +14,7 @@ import { Header } from '@/components/layout/Header';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
 export default function FreightDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -72,15 +72,15 @@ export default function FreightDetailScreen() {
 
         <View style={styles.routeCard}>
           <View style={styles.routeSide}>
-            <MaterialIcons name="trip-origin" size={18} color={colors.primary} />
+            <MaterialCommunityIcons name="circle-outline" size={18} color={colors.primary} />
             <Text style={styles.routeProv}>{request.pickupProvince}</Text>
             <Text style={styles.routeAddr}>{request.pickupAddress || 'موقع التحميل'}</Text>
           </View>
-          <MaterialIcons name="arrow-back" size={20} color={colors.textMuted} />
+          <MaterialCommunityIcons name="arrow-left" size={20} color={colors.textMuted} />
           <View style={styles.routeSide}>
-            <MaterialIcons name="place" size={18} color={colors.emphasis} />
+            <MaterialCommunityIcons name="map-marker-outline" size={18} color={colors.emphasis} />
             <Text style={styles.routeProv}>{request.deliveryProvince}</Text>
-            <Text style={styles.routeAddr}>{request.deliveryAddress || 'موقع التسليم'}</Text>
+            <Text style={styles.routeAddr}>{request.deliveryAddress || 'موقع التفريغ'}</Text>
           </View>
         </View>
 
@@ -124,7 +124,7 @@ export default function FreightDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  content: { padding: spacing.md },
+  content: { padding: spacing.md, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   hero: { width: '100%', height: 200, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
   headRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
   cargoType: { ...typography.title, color: colors.text },

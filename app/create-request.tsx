@@ -13,7 +13,7 @@ import { Field } from '@/components/ui/Field';
 import { SelectField } from '@/components/ui/SelectField';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { Button } from '@/components/ui/Button';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, layout, spacing, typography } from '@/constants/theme';
 
 export default function CreateRequestScreen() {
   const router = useRouter();
@@ -80,7 +80,7 @@ export default function CreateRequestScreen() {
       <View style={styles.headerWrap}>
         <Header title="طلب ناقل جديد" showBack />
       </View>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]} showsVerticalScrollIndicator={false}>
           <Text style={styles.section}>موقع التحميل</Text>
           <SelectField
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   flex: { flex: 1 },
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  content: { padding: spacing.md },
+  content: { padding: spacing.md, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   section: { ...typography.section, color: colors.primary, textAlign: 'right', marginTop: spacing.sm, marginBottom: spacing.sm },
   imageLabel: { ...typography.label, color: colors.text, textAlign: 'right', marginBottom: spacing.xs },
   cargoImageWrap: { width: 150, alignSelf: 'flex-end', marginBottom: spacing.md },

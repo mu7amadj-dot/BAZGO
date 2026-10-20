@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '@/hooks/useApp';
 import { matchDrivers } from '@/services/matchingService';
@@ -10,11 +10,11 @@ import { Header } from '@/components/layout/Header';
 import { FreightCard } from '@/components/feature/FreightCard';
 import { ChipSelect } from '@/components/ui/ChipSelect';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { colors, spacing } from '@/constants/theme';
+import { colors, layout, spacing } from '@/constants/theme';
 
 export default function RequestsScreen() {
   const router = useRouter();
-  const { role, requests, drivers, applications } = useApp();
+  const { role, requests, drivers } = useApp();
   const isMerchant = role === 'merchant';
   const [province, setProvince] = useState<string>('all');
   const [vehicle, setVehicle] = useState<string>('all');
@@ -41,7 +41,7 @@ export default function RequestsScreen() {
       <View style={styles.headerWrap}>
         <Header
           title={isMerchant ? 'طلباتي' : 'الحمولات المتاحة'}
-          subtitle={`${filtered.length} ${isMerchant ? 'طلب' : 'حمولة'}`}
+          subtitle={`${province === 'all' ? 'كل المحافظات' : province} · ${filtered.length} ${isMerchant ? 'طلب' : 'حمولة'}`}
         />
       </View>
 
@@ -57,7 +57,6 @@ export default function RequestsScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          const applicantCount = applications.filter((a) => a.freightId === item.id).length;
           return (
             <FreightCard
               request={item}
@@ -70,7 +69,7 @@ export default function RequestsScreen() {
           <EmptyState
             title={isMerchant ? 'لا توجد طلبات بعد' : 'لا توجد حمولات مطابقة'}
             subtitle={isMerchant ? 'انشر طلب نقل جديد لتصلك عروض السائقين' : 'جرّب تغيير عوامل التصفية'}
-            icon={<MaterialIcons name="local-shipping" size={44} color={colors.textMuted} />}
+            icon={<MaterialCommunityIcons name="truck-outline" size={44} color={colors.textMuted} />}
           />
         }
       />
@@ -81,6 +80,6 @@ export default function RequestsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  list: { padding: spacing.md, paddingBottom: spacing.xxl },
+  list: { padding: spacing.md, paddingBottom: spacing.xxl, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   filters: { marginBottom: spacing.xs },
 });

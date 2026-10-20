@@ -2,7 +2,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useAlert } from '@/template';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -80,7 +80,7 @@ export function ImageUpload({ label, value, onChange, icon = 'camera-plus-outlin
           <>
             <Image source={{ uri: value }} style={styles.preview} contentFit="cover" transition={200} />
             <View style={styles.editBadge}>
-              <MaterialIcons name="edit" size={13} color={colors.onPrimary} />
+              <MaterialCommunityIcons name="pencil-outline" size={13} color={colors.onPrimary} />
             </View>
           </>
         ) : (

@@ -5,14 +5,15 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AlertProvider } from '@/template';
 import { AppProvider } from '@/contexts/AppContext';
+import { colors } from '@/constants/theme';
 
 export default function RootLayout() {
   return (
     <AlertProvider>
       <SafeAreaProvider>
         <AppProvider>
-          <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F5F3EE' } }}>
+          <StatusBar style="light" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="auth" />
             <Stack.Screen name="otp" />

@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAlert } from '@/template';
@@ -13,7 +13,7 @@ import { Header } from '@/components/layout/Header';
 import { Badge } from '@/components/ui/Badge';
 import { DriverCard } from '@/components/feature/DriverCard';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
 export default function ApplicantsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -81,12 +81,12 @@ export default function ApplicantsScreen() {
         </View>
 
         <View style={styles.sectionHeader}>
-          <MaterialIcons name="how-to-reg" size={20} color={colors.primary} />
+          <MaterialCommunityIcons name="account-check-outline" size={20} color={colors.primary} />
           <Text style={styles.sectionTitle}>السائقون المتقدمون ({applicants.length})</Text>
         </View>
 
         {applicants.length === 0 ? (
-          <EmptyState title="لا توجد عروض بعد" subtitle="سيظهر السائقون هنا فور تقديمهم" icon={<MaterialIcons name="hourglass-empty" size={40} color={colors.textMuted} />} />
+          <EmptyState title="لا توجد عروض بعد" subtitle="سيظهر السائقون هنا فور تقديمهم" icon={<MaterialCommunityIcons name="timer-sand" size={40} color={colors.textMuted} />} />
         ) : (
           applicants.map(({ driver, application, match }) => (
             <DriverCard
@@ -104,7 +104,7 @@ export default function ApplicantsScreen() {
         {suggested.length > 0 ? (
           <>
             <View style={styles.sectionHeader}>
-              <MaterialIcons name="auto-awesome" size={20} color={colors.emphasisDark} />
+              <MaterialCommunityIcons name="auto-fix" size={20} color={colors.emphasisDark} />
               <Text style={styles.sectionTitle}>مطابقة ذكية من BAZGO</Text>
             </View>
             {suggested.map((m) => (
@@ -120,7 +120,7 @@ export default function ApplicantsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  content: { padding: spacing.md },
+  content: { padding: spacing.md, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   summary: { backgroundColor: colors.surfaceTint, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
   summaryRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
   summaryPrice: { ...typography.section, color: colors.primary },

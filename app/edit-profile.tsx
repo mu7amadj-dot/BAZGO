@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
 import React, { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
@@ -10,7 +10,7 @@ import { PROVINCES } from '@/constants/config';
 import { Field } from '@/components/ui/Field';
 import { SelectField } from '@/components/ui/SelectField';
 import { Button } from '@/components/ui/Button';
-import { colors, radius, spacing, typography } from '@/constants/theme';
+import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -54,8 +54,8 @@ export default function EditProfileScreen() {
   return (
     <View style={styles.wrap}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="رجوع">
-          <MaterialIcons name="arrow-forward" size={22} color={colors.text} />
+        <Pressable onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [styles.iconBtn, pressed ? styles.pressed : null]} accessibilityRole="button" accessibilityLabel="رجوع">
+          <MaterialCommunityIcons name="arrow-right" size={22} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>تعديل بيانات الحساب</Text>
         <View style={styles.iconBtn} />
@@ -63,7 +63,7 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={insets.top}
       >
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -105,9 +105,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingBottom: spacing.sm,
     backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: layout.touchTarget, height: layout.touchTarget, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.75 },
   headerTitle: { ...typography.section, color: colors.text },
-  body: { padding: spacing.lg, paddingBottom: spacing.xxl },
+  body: { padding: spacing.lg, paddingBottom: spacing.xxl, width: '100%', maxWidth: layout.authMaxWidth, alignSelf: 'center' },
   roleBadge: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-end',
     backgroundColor: colors.surfaceTint, paddingHorizontal: spacing.md, paddingVertical: 6,

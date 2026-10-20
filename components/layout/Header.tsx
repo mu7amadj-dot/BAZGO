@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
-import React from 'react';
+import React, { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { colors, spacing, typography } from '@/constants/theme';
@@ -14,11 +14,11 @@ interface HeaderProps {
   onBackground?: boolean;
 }
 
-export function Header({ title, subtitle, showBack = false, right, onBackground = false }: HeaderProps) {
+export const Header = memo(function Header({ title, subtitle, showBack = false, right, onBackground = false }: HeaderProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const fg = onBackground ? colors.onPrimary : colors.text;
-  const sub = onBackground ? 'rgba(255,255,255,0.8)' : colors.textSubtle;
+  const fg = onBackground ? colors.onDark : colors.text;
+  const sub = colors.textSubtle;
 
   return (
     <View style={[styles.wrap, { paddingTop: insets.top + spacing.sm }]}>
@@ -31,18 +31,18 @@ export function Header({ title, subtitle, showBack = false, right, onBackground 
           <Pressable
             onPress={() => router.back()}
             hitSlop={10}
-            style={styles.backBtn}
+            style={({ pressed }) => [styles.backBtn, pressed ? styles.pressed : null]}
             accessibilityRole="button"
             accessibilityLabel="رجوع"
           >
-            <MaterialIcons name="chevron-right" size={26} color={fg} />
+            <MaterialCommunityIcons name="chevron-right" size={26} color={fg} />
           </Pressable>
         ) : null}
         {right ? <View style={styles.right}>{right}</View> : null}
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
@@ -50,6 +50,7 @@ const styles = StyleSheet.create({
   titleBlock: { flex: 1 },
   title: { ...typography.title, textAlign: 'right' },
   subtitle: { ...typography.caption, textAlign: 'right', marginTop: 2 },
-  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.75 },
   right: {},
 });

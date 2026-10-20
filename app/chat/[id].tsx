@@ -1,7 +1,7 @@
 // Powered by OnSpace.AI
 import React, { useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
@@ -31,7 +31,7 @@ export default function ChatScreen() {
         <Header title={conversation?.peerName ?? 'محادثة'} subtitle={conversation?.freightTitle} showBack />
       </View>
 
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={insets.top + 8}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={insets.top + 8}>
         <FlatList
           data={thread}
           keyExtractor={(m) => m.id}
@@ -39,7 +39,7 @@ export default function ChatScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <MaterialIcons name="chat-bubble-outline" size={40} color={colors.textMuted} />
+              <MaterialCommunityIcons name="message-text-outline" size={40} color={colors.textMuted} />
               <Text style={styles.emptyText}>ابدأ المحادثة حول تفاصيل النقل</Text>
             </View>
           }
@@ -64,10 +64,11 @@ export default function ChatScreen() {
             placeholder="اكتب رسالة..."
             placeholderTextColor={colors.textMuted}
             textAlign="right"
+            accessibilityLabel="اكتب رسالة"
             multiline
           />
-          <Pressable style={styles.sendBtn} onPress={send} hitSlop={8} accessibilityRole="button" accessibilityLabel="إرسال">
-            <MaterialIcons name="send" size={20} color={colors.onPrimary} />
+          <Pressable style={({ pressed }) => [styles.sendBtn, pressed ? styles.pressed : null]} onPress={send} hitSlop={8} accessibilityRole="button" accessibilityLabel="إرسال">
+            <MaterialCommunityIcons name="send-outline" size={20} color={colors.onPrimary} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -91,8 +92,9 @@ const styles = StyleSheet.create({
   bubbleText: { ...typography.body, color: colors.text, textAlign: 'right' },
   bubbleTextMine: { color: colors.onPrimary },
   time: { ...typography.caption, color: colors.textMuted, textAlign: 'left', marginTop: 4 },
-  timeMine: { color: 'rgba(255,255,255,0.7)' },
+  timeMine: { color: colors.onPrimary },
   inputBar: { flexDirection: 'row-reverse', alignItems: 'flex-end', gap: spacing.sm, padding: spacing.sm, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
   input: { flex: 1, backgroundColor: colors.background, borderRadius: radius.lg, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, maxHeight: 120, ...typography.body, color: colors.text },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.75 },
+  sendBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });

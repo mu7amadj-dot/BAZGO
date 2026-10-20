@@ -38,6 +38,7 @@ export function ChipSelect({ label, items, selectedId, onSelect }: ChipSelectPro
                 ]}
                 accessibilityRole="button"
                 accessibilityLabel={item.label}
+                accessibilityState={{ selected: isSelected }}
               >
                 <Text style={[styles.chipText, isSelected ? styles.chipTextSelected : styles.chipTextDefault]}>
                   {item.label}
@@ -54,10 +55,10 @@ export function ChipSelect({ label, items, selectedId, onSelect }: ChipSelectPro
 const styles = StyleSheet.create({
   wrap: { marginBottom: spacing.md },
   label: { ...typography.label, color: colors.text, textAlign: 'right', marginBottom: spacing.sm },
-  barOuter: { minHeight: 44 },
+  barOuter: { minHeight: 48 },
   content: { flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.sm, paddingHorizontal: 2 },
   chip: {
-    height: 40,
+    height: 48,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     alignItems: 'center',

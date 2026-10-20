@@ -1,12 +1,12 @@
 // Powered by OnSpace.AI
 import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '@/hooks/useApp';
 import { Header } from '@/components/layout/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
+import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
 export default function MessagesScreen() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function MessagesScreen() {
               onPress={() => router.push(`/chat/${item.id}`)}
             >
               <View style={styles.avatar}>
-                <MaterialIcons name="person" size={24} color={colors.primary} />
+                <MaterialCommunityIcons name="account-outline" size={24} color={colors.primary} />
               </View>
               <View style={styles.rowText}>
                 <Text style={styles.peer} numberOfLines={1}>{item.peerName}</Text>
@@ -39,7 +39,7 @@ export default function MessagesScreen() {
                   {last ? last.text : item.freightTitle}
                 </Text>
               </View>
-              <MaterialIcons name="chevron-left" size={22} color={colors.textMuted} />
+              <MaterialCommunityIcons name="chevron-left" size={22} color={colors.textMuted} />
             </Pressable>
           );
         }}
@@ -47,7 +47,7 @@ export default function MessagesScreen() {
           <EmptyState
             title="لا توجد محادثات بعد"
             subtitle="تبدأ المحادثة بعد قبول السائق للنقل"
-            icon={<MaterialIcons name="chat-bubble-outline" size={44} color={colors.textMuted} />}
+            icon={<MaterialCommunityIcons name="message-text-outline" size={44} color={colors.textMuted} />}
           />
         }
       />
@@ -58,7 +58,7 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
-  list: { padding: spacing.md, paddingBottom: spacing.xxl },
+  list: { padding: spacing.md, paddingBottom: spacing.xxl, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   row: {
     flexDirection: 'row-reverse', alignItems: 'center', gap: spacing.sm,
     backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,

@@ -18,8 +18,10 @@ export function RoleSwitcher({ role, onChange }: RoleSwitcherProps) {
           <Pressable
             key={r}
             onPress={() => onChange(r)}
-            style={[styles.segment, isSelected && styles.segmentActive]}
+            style={({ pressed }) => [styles.segment, isSelected ? styles.segmentActive : null, pressed ? styles.pressed : null]}
             accessibilityRole="button"
+            accessibilityState={{ selected: isSelected }}
+            accessibilityLabel={r === 'merchant' ? 'حساب تاجر' : 'حساب سائق'}
           >
             <Text style={[styles.text, isSelected && styles.textActive]}>
               {r === 'merchant' ? 'حساب تاجر' : 'حساب سائق'}
@@ -40,7 +42,7 @@ const styles = StyleSheet.create({
   },
   segment: {
     flex: 1,
-    height: 40,
+    height: 48,
     borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -48,4 +50,5 @@ const styles = StyleSheet.create({
   segmentActive: { backgroundColor: colors.primary, ...shadow.card },
   text: { ...typography.label, color: colors.textSubtle },
   textActive: { color: colors.onPrimary },
+  pressed: { opacity: 0.8 },
 });

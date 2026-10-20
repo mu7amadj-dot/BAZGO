@@ -1,43 +1,36 @@
 {
   "expo": {
-    "name": "onspace-app",
+    "name": "BAZGO",
     "slug": "onspace-app",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "orientation": "default",
+    "icon": "./assets/images/bazgo-logo.png",
     "scheme": "onspaceapp",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true
-    },
+    "ios": { "supportsTablet": true },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/logo.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/bazgo-logo.png",
+        "backgroundColor": "#0B1C2C"
       },
       "edgeToEdgeEnabled": true
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/logo.png"
+      "favicon": "./assets/images/bazgo-logo.png"
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/logo.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
+      ["expo-splash-screen", {
+        "image": "./assets/images/bazgo-logo.png",
+        "imageWidth": 200,
+        "resizeMode": "contain",
+        "backgroundColor": "#0B1C2C"
+      }],
       "expo-web-browser"
     ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    "experiments": { "typedRoutes": true }
   }
 }
