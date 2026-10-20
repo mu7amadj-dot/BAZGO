@@ -31,6 +31,12 @@ export const colors = {
   overlay: 'rgba(3, 12, 21, 0.78)',
   transparent: 'transparent',
   shadow: '#020A12',
+  navigationSurface: '#FFFFFF',
+  navigationSelected: '#F3F3F3',
+  navigationText: '#111111',
+  navigationMuted: '#626262',
+  navigationBorder: '#DDDDDD',
+  navigationIndicator: '#2674E8',
 };
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 };
@@ -52,6 +58,7 @@ export const typography = {
   bodyStrong: { fontSize: 16, fontWeight: '600' as const, lineHeight: 26, includeFontPadding: false },
   label: { fontSize: 14, fontWeight: '600' as const, lineHeight: 22, includeFontPadding: false },
   caption: { fontSize: 13, fontWeight: '400' as const, lineHeight: 20, includeFontPadding: false },
+  navigationLabel: { fontSize: 12, fontWeight: '500' as const, lineHeight: 18, includeFontPadding: false },
   button: { fontSize: 16, fontWeight: '700' as const, lineHeight: 24, includeFontPadding: false },
 };
 export const shadow = {

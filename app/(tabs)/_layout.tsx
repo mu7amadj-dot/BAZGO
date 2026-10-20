@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
 import { colors, spacing } from '@/constants/theme';
+import { FloatingTabBar } from '@/components/layout/FloatingTabBar';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -16,20 +17,21 @@ export default function TabLayout() {
     paddingTop: 8,
     paddingBottom: Platform.select({ ios: insets.bottom + 8, android: insets.bottom + 8, default: 8 }),
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    backgroundColor: colors.transparent,
+    borderTopWidth: 0,
+    borderTopColor: colors.transparent,
   };
 
   return (
     <Tabs
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: false,
         tabBarStyle,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
+        tabBarActiveTintColor: colors.navigationText,
+        tabBarInactiveTintColor: colors.navigationMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600', includeFontPadding: false },
-        tabBarActiveBackgroundColor: colors.surfaceSelected,
+        tabBarActiveBackgroundColor: colors.navigationSelected,
       }}
     >
       <Tabs.Screen
