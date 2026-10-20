@@ -33,7 +33,7 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.screen} edges={['top']}>
       <FlatList key={`home-${columns}`} data={featuredRequests} numColumns={columns} keyExtractor={(request) => request.id}
         style={styles.list} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} renderItem={renderItem}
-        ListEmptyComponent={<EmptyState title="لا توجد حمولات بعد" subtitle={isMerchant ? 'انشر حمولة لبدء التفاوض مع السائقين.' : 'ستظهر الحمولات المنشورة هنا.'} />}
+        ListEmptyComponent={<EmptyState title={isMerchant ? 'لا توجد طلبات منشورة فعالة' : 'لا توجد حمولات بعد'} subtitle={isMerchant ? 'انشر حمولة جديدة عبر «اطلب ناقل». لا تظهر هنا الطلبات المسلّمة أو المكتملة أو الملغاة.' : 'ستظهر الحمولات المنشورة هنا.'} />}
         ListHeaderComponent={
           <View>
             <MarketConnectionBanner />
@@ -58,8 +58,8 @@ export default function HomeScreen() {
               </>
             ) : null}
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{isMerchant ? 'أحدث طلبات النقل' : 'حمولات مقترحة لك'}</Text>
-              <Pressable onPress={openRequests} style={({ pressed }) => [styles.seeAllButton, pressed ? styles.pressed : null]} accessibilityRole="button" accessibilityLabel="عرض كل الطلبات"><Text style={styles.seeAll}>عرض الكل</Text></Pressable>
+              <Text style={styles.sectionTitle}>{isMerchant ? 'طلباتي المنشورة الفعالة' : 'حمولات مقترحة لك'}</Text>
+              {!isMerchant ? <Pressable onPress={openRequests} style={({ pressed }) => [styles.seeAllButton, pressed ? styles.pressed : null]} accessibilityRole="button" accessibilityLabel="عرض كل الطلبات"><Text style={styles.seeAll}>عرض الكل</Text></Pressable> : null}
             </View>
           </View>
         } />

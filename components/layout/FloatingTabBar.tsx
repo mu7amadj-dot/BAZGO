@@ -32,6 +32,7 @@ export const FloatingTabBar = memo(function FloatingTabBar({ state, descriptors,
       <View style={styles.bar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
+          if (StyleSheet.flatten(options.tabBarItemStyle)?.display === 'none') return null;
           const isSelected = state.index === index;
           const label = options.title ?? route.name;
           const icon = icons[route.name] ?? icons.index;

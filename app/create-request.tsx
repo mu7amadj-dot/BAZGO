@@ -77,7 +77,7 @@ export default function CreateRequestScreen() {
     setSubmitting(true);
     try {
       await addRequest(req);
-      router.replace('/(tabs)/requests');
+      router.replace('/(tabs)');
     } catch (error) { showAlert('تعذر النشر', error instanceof Error ? error.message : 'حاول مجدداً.'); }
     finally { setSubmitting(false); }
   };

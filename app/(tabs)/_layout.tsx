@@ -41,7 +41,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="requests"
         options={{
-          title: role === 'merchant' ? 'طلباتي' : 'الحمولات',
+          title: 'الحمولات',
+          href: role === 'merchant' ? null : '/(tabs)/requests',
+          tabBarItemStyle: role === 'merchant' ? { display: 'none' } : undefined,
           tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="truck-outline" size={size} color={color} />,
         }}
       />

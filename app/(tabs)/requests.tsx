@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useApp } from '@/hooks/useApp';
 import { matchDrivers } from '@/services/matchingService';
 import { PROVINCES, VEHICLES } from '@/constants/config';
@@ -36,6 +36,8 @@ export default function RequestsScreen() {
       return true;
     });
   }, [requests, province, vehicle]);
+
+  if (isMerchant) return <Redirect href="/(tabs)" />;
 
   return (
     <View style={styles.screen}>
