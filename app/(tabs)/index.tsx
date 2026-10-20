@@ -18,7 +18,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const { width } = useViewport();
-  const { isMerchant, name, openCount, matchedCount, applicationCount, matchedIds, featuredRequests } = useFreightOverview();
+  const { isMerchant, name, openCount, applicationCount, matchedIds, featuredRequests } = useFreightOverview();
   const columns = width >= layout.tabletBreakpoint ? 2 : 1;
   const createRequest = useCallback(() => router.push('/create-request'), [router]);
   const openRequests = useCallback(() => router.push('/(tabs)/requests'), [router]);
@@ -35,20 +35,24 @@ export default function HomeScreen() {
         style={styles.list} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} renderItem={renderItem}
         ListHeaderComponent={
           <View>
-            <View style={styles.topbar}>
-              <BrandMark compact showSlogan={false} />
-              <View style={styles.roleBadge}><MaterialCommunityIcons name={isMerchant ? 'store-outline' : 'truck-outline'} size={18} color={colors.primary} /><Text style={styles.roleText}>{isMerchant ? 'تاجر' : 'سائق'}</Text></View>
-            </View>
-            <LinearGradient colors={[colors.surface, colors.background]} style={styles.hero}>
-              <Text style={styles.hello}>مرحباً بك، {name}</Text>
-              <Text style={styles.heroTitle}>{isMerchant ? 'بضاعتك تستحق ناقلاً موثوقاً' : 'رحلتك القادمة تبدأ من هنا'}</Text>
-              <Text style={styles.heroSubtitle}>{isMerchant ? 'انشر حمولتك واختر السائق المناسب لمسارك.' : 'اكتشف الحمولات والعروض المناسبة لمركبتك.'}</Text>
-              <View style={styles.statsRow}>
-                <View style={styles.stat}><Text style={styles.statValue}>{isMerchant ? openCount : matchedCount}</Text><Text style={styles.statLabel}>{isMerchant ? 'طلبات نشطة' : 'حمولات مطابقة'}</Text></View>
-                <View style={styles.stat}><Text style={styles.statValue}>{applicationCount}</Text><Text style={styles.statLabel}>{isMerchant ? 'عروض السائقين' : 'طلبات مقدّمة'}</Text></View>
-              </View>
-              <Button title={isMerchant ? 'اطلب ناقل' : 'تصفّح الحمولات المتاحة'} onPress={isMerchant ? createRequest : openRequests} icon={<MaterialCommunityIcons name={isMerchant ? 'truck-plus-outline' : 'truck-outline'} size={22} color={colors.onPrimary} />} />
-            </LinearGradient>
+            {isMerchant ? (
+              <>
+                <View style={styles.topbar}>
+                  <BrandMark compact showSlogan={false} />
+                  <View style={styles.roleBadge}><MaterialCommunityIcons name="store-outline" size={18} color={colors.primary} /><Text style={styles.roleText}>تاجر</Text></View>
+                </View>
+                <LinearGradient colors={[colors.surface, colors.background]} style={styles.hero}>
+                  <Text style={styles.hello}>مرحباً بك، {name}</Text>
+                  <Text style={styles.heroTitle}>بضاعتك تستحق ناقلاً موثوقاً</Text>
+                  <Text style={styles.heroSubtitle}>انشر حمولتك واختر السائق المناسب لمسارك.</Text>
+                  <View style={styles.statsRow}>
+                    <View style={styles.stat}><Text style={styles.statValue}>{openCount}</Text><Text style={styles.statLabel}>طلبات نشطة</Text></View>
+                    <View style={styles.stat}><Text style={styles.statValue}>{applicationCount}</Text><Text style={styles.statLabel}>عروض السائقين</Text></View>
+                  </View>
+                  <Button title="اطلب ناقل" onPress={createRequest} icon={<MaterialCommunityIcons name="truck-plus-outline" size={22} color={colors.onPrimary} />} />
+                </LinearGradient>
+              </>
+            ) : null}
             {isMerchant ? <Pressable onPress={sharedTransport} style={({ pressed }) => [styles.sharedCard, pressed ? styles.pressed : null]} accessibilityRole="button" accessibilityLabel="النقل المشترك">
               <View style={styles.sharedIcon}><MaterialCommunityIcons name="truck-delivery-outline" size={28} color={colors.primary} /></View>
               <View style={styles.sharedText}><Text style={styles.sharedTitle}>نقل مشترك</Text><Text style={styles.sharedSubtitle}>مساحة شاغرة على نفس مسارك</Text></View>
