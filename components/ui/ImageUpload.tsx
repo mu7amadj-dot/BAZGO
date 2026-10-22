@@ -12,9 +12,10 @@ interface ImageUploadProps {
   value?: string;
   onChange: (uri: string) => void;
   icon?: string;
+  disabled?: boolean;
 }
 
-export function ImageUpload({ label, value, onChange, icon = 'camera-plus-outline' }: ImageUploadProps) {
+export function ImageUpload({ label, value, onChange, icon = 'camera-plus-outline', disabled = false }: ImageUploadProps) {
   const { showAlert } = useAlert();
 
   const applyResult = (result: ImagePicker.ImagePickerResult) => {
@@ -71,8 +72,10 @@ export function ImageUpload({ label, value, onChange, icon = 'camera-plus-outlin
     <View style={styles.wrap}>
       <Text style={styles.label} numberOfLines={1}>{label}</Text>
       <Pressable
-        style={({ pressed }) => [styles.box, value ? styles.boxFilled : null, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.box, value ? styles.boxFilled : null, pressed ? styles.pressed : null, disabled ? styles.disabled : null]}
         onPress={chooseSource}
+        disabled={disabled}
+        accessibilityState={{ disabled }}
         accessibilityRole="button"
         accessibilityLabel={label}
       >
@@ -110,6 +113,7 @@ const styles = StyleSheet.create({
   },
   boxFilled: { borderStyle: 'solid', borderColor: colors.primary },
   pressed: { opacity: 0.85 },
+  disabled: { opacity: 0.5 },
   preview: { width: '100%', height: '100%' },
   placeholder: { alignItems: 'center', gap: 4 },
   hint: { ...typography.caption, color: colors.textSubtle },

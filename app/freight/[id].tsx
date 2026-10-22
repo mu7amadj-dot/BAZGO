@@ -6,10 +6,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAlert } from '@/template';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { useApp } from '@/hooks/useApp';
 import { useLoadBooking } from '@/hooks/useLoadBooking';
 import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
-import { STATUS_LABELS, STATUS_COLORS } from '@/services/mockData';
+import { STATUS_LABELS, STATUS_COLORS } from '@/constants/loadStatus';
 import { vehicleLabel } from '@/constants/config';
 import { formatIQD, formatWeight, formatDistance, formatDate } from '@/services/format';
 import { Header } from '@/components/layout/Header';
@@ -18,7 +19,8 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
-export default function FreightDetailScreen() {
+export default function FreightDetailScreen() { return <AccountGate><LoadDetailScreen /></AccountGate>; }
+function LoadDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -53,7 +55,7 @@ export default function FreightDetailScreen() {
       </View>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]} showsVerticalScrollIndicator={false}>
         <MarketConnectionBanner />
-        <Image source={{ uri: request.cargoImage }} style={styles.hero} contentFit="cover" transition={200} />
+        {request.cargoImage ? <Image source={{ uri: request.cargoImage }} style={styles.hero} contentFit="cover" transition={200} /> : <View style={[styles.hero, styles.imagePlaceholder]}><MaterialCommunityIcons name="package-variant-closed" size={48} color={colors.primary} /><Text style={styles.placeholderLabel}>لم تُرفق صورة للحمولة</Text></View>}
 
         <View style={styles.headRow}>
           <Text style={styles.cargoType}>{request.cargoType}</Text>
@@ -123,6 +125,8 @@ const styles = StyleSheet.create({
   headerWrap: { backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   content: { padding: spacing.md, width: '100%', maxWidth: layout.contentMaxWidth, alignSelf: 'center' },
   hero: { width: '100%', height: 200, borderRadius: radius.lg, backgroundColor: colors.surfaceAlt },
+  imagePlaceholder: { alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  placeholderLabel: { ...typography.body, color: colors.textSubtle },
   headRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md },
   cargoType: { ...typography.title, color: colors.text },
   merchant: { ...typography.body, color: colors.textSubtle, textAlign: 'right', marginTop: 2 },

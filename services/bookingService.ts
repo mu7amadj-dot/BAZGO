@@ -2,8 +2,8 @@ import { FunctionsHttpError } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/template';
 import { decode } from 'base64-arraybuffer';
 import { Platform } from 'react-native';
-import * as Crypto from 'expo-crypto';
 import { readNativeBase64 } from './fileSystemService';
+import { uploadJpegImage } from './imageStorageService';
 import type { FreightRequest } from './types';
 import type { MarketAccount, MarketSnapshot, Negotiation, NegotiationAction } from './bookingTypes';
 
@@ -73,8 +73,7 @@ async function uploadMedia(bucket: string, path: string, uri: string, contentTyp
 export async function createServerLoad(request: FreightRequest, userId: string) {
   let image = request.cargoImage;
   if (image && !/^https?:/.test(image)) {
-    const path = `${userId}/${Crypto.randomUUID()}.jpg`;
-    await uploadMedia('bazgo-cargo', path, image, 'image/jpeg');
+    const path = await uploadJpegImage('bazgo-cargo', image, userId);
     image = getSupabaseClient().storage.from('bazgo-cargo').getPublicUrl(path).data.publicUrl;
   }
   return marketRpc<string>('bazgo_create_load', { p_payload: { ...request, cargoImage: image } });

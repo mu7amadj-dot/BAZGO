@@ -11,7 +11,12 @@ async function login(prefix:string,role:string):Promise<SupabaseClient> {
   const result=await client.auth.signInWithPassword({email:env(`TEST_${prefix}_EMAIL`),password:env(`TEST_${prefix}_PASSWORD`)});
   if(result.error)throw result.error;
   assert(result.data.user);
-  const setup=await client.rpc('bazgo_setup_account',{p_role:role,p_name:`Integration ${prefix}`,p_profile:{}});
+  // Disposable fixtures must follow the same production account validation.
+  const common={phone:'+9647700000000',province:'بغداد'};
+  const profile=role==='merchant'
+    ? {...common,companyName:'Integration test company',location:'TEST ONLY'}
+    : {...common,fatherName:'Integration',grandfatherName:'Test',vehicleType:'truck25',maxCapacity:'25',driverPhoto:'',licensePhoto:'',vehiclePhoto:''};
+  const setup=await client.rpc('bazgo_setup_account',{p_role:role,p_name:`Integration ${prefix}`,p_profile:profile});
   if(setup.error)throw setup.error;
   return client;
 }

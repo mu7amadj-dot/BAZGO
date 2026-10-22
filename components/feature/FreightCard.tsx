@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FreightRequest } from '@/services/types';
-import { STATUS_LABELS, STATUS_COLORS } from '@/services/mockData';
+import { STATUS_LABELS, STATUS_COLORS } from '@/constants/loadStatus';
 import { vehicleLabel, vehicleIcon } from '@/constants/config';
 import { formatIQD, formatWeight, formatDistance } from '@/services/format';
 import { colors, radius, spacing, typography, shadow } from '@/constants/theme';
@@ -25,7 +25,7 @@ export const FreightCard = memo(function FreightCard({ request, onPress, matched
       accessibilityLabel={`${request.cargoType}، من ${request.pickupProvince} إلى ${request.deliveryProvince}`}
     >
       <View style={styles.header}>
-        <Image source={{ uri: request.cargoImage }} style={styles.thumb} contentFit="cover" transition={200} />
+        {request.cargoImage ? <Image source={{ uri: request.cargoImage }} style={styles.thumb} contentFit="cover" transition={200} /> : <View style={[styles.thumb, styles.imagePlaceholder]}><MaterialCommunityIcons name="package-variant-closed" size={28} color={colors.primary} /></View>}
         <View style={styles.headerText}>
           <Text style={styles.cargoType} numberOfLines={1}>{request.cargoType}</Text>
           <Text style={styles.merchant} numberOfLines={1}>{request.merchantName}</Text>
@@ -95,6 +95,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },
   header: { flexDirection: 'row-reverse', gap: spacing.sm },
   thumb: { width: 64, height: 64, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
+  imagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   headerText: { flex: 1 },
   cargoType: { ...typography.section, color: colors.text, textAlign: 'right' },
   merchant: { ...typography.caption, color: colors.textSubtle, textAlign: 'right', marginTop: 2 },

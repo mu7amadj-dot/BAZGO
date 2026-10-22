@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNegotiationChat } from '@/hooks/useNegotiationChat';
 import type { BookingMessage } from '@/services/bookingTypes';
 import { formatTime } from '@/services/format';
-import { STATUS_LABELS, STATUS_COLORS } from '@/services/mockData';
+import { STATUS_LABELS, STATUS_COLORS } from '@/constants/loadStatus';
 import { Header } from '@/components/layout/Header';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';

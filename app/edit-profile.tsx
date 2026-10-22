@@ -7,20 +7,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
 import { useProfileSave } from '@/hooks/useProfileSave';
 import { useAlert } from '@/template';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { PROVINCES } from '@/constants/config';
 import { Field } from '@/components/ui/Field';
 import { SelectField } from '@/components/ui/SelectField';
 import { Button } from '@/components/ui/Button';
 import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 
-export default function EditProfileScreen() {
+export default function EditProfileScreen() { return <AccountGate><EditAccountScreen /></AccountGate>; }
+function EditAccountScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { showAlert } = useAlert();
   const secureProfile = useProfileSave();
   const {
     role, merchantName, driverName, merchantProfile, driverProfile,
-    setNames, setMerchantProfile, setDriverProfile,
   } = useApp();
 
   const isMerchant = role === 'merchant';
@@ -42,24 +43,11 @@ export default function EditProfileScreen() {
       showAlert('الاسم مطلوب', 'يرجى إدخال الاسم قبل حفظ التغييرات.');
       return;
     }
-    if (secureProfile.authenticated) {
-      try {
-        const nextProfile = isMerchant ? { ...merchantProfile, companyName: companyName.trim(), location: location.trim(), province, phone: phone.trim() } : { ...driverProfile, province, phone: phone.trim() };
-        await secureProfile.saveProfile(finalName, { ...nextProfile });
-        router.back();
-      } catch (error) { showAlert('تعذر حفظ البيانات', error instanceof Error ? error.message : 'حاول مجدداً.'); }
-      return;
-    }
-    if (isMerchant) {
-      setNames(finalName, '');
-      setMerchantProfile({ ...merchantProfile, companyName: companyName.trim(), location: location.trim(), province, phone: phone.trim() });
-    } else {
-      setNames('', finalName);
-      setDriverProfile({ ...driverProfile, province, phone: phone.trim() });
-    }
-    showAlert('تم الحفظ', 'تم تحديث بيانات حسابك بنجاح.', [
-      { text: 'حسناً', onPress: () => router.back() },
-    ]);
+    try {
+      const nextProfile = isMerchant ? { ...merchantProfile, companyName: companyName.trim(), location: location.trim(), province, phone: phone.trim() } : { ...driverProfile, province, phone: phone.trim() };
+      await secureProfile.saveProfile(finalName, { ...nextProfile });
+      router.back();
+    } catch (error) { showAlert('تعذر حفظ البيانات', error instanceof Error ? error.message : 'حاول مجدداً.'); }
   };
 
   return (

@@ -3,13 +3,15 @@ import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { useApp } from '@/hooks/useApp';
 import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { Header } from '@/components/layout/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
-export default function MessagesScreen() {
+export default function MessagesScreen() { return <AccountGate><ConversationListScreen /></AccountGate>; }
+function ConversationListScreen() {
   const router = useRouter();
   const { contentInset } = useFloatingTabBarLayout();
   const { conversations, messages } = useApp();

@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLoadBooking } from '@/hooks/useLoadBooking';
 import { formatIQD } from '@/services/format';
-import { STATUS_COLORS, STATUS_LABELS } from '@/services/mockData';
+import { STATUS_COLORS, STATUS_LABELS } from '@/constants/loadStatus';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { MarketConnectionBanner } from './MarketConnectionBanner';

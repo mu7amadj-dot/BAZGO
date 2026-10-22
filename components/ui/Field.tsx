@@ -7,9 +7,9 @@ import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 interface FieldProps {
   label: string; value: string; onChangeText: (text: string) => void; placeholder?: string;
   keyboardType?: 'default' | 'numeric' | 'phone-pad'; multiline?: boolean; error?: string;
-  icon?: string; compact?: boolean;
+  icon?: string; compact?: boolean; editable?: boolean;
 }
-export const Field = memo(function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, error, icon, compact = false }: FieldProps) {
+export const Field = memo(function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, error, icon, compact = false, editable = true }: FieldProps) {
   const [focused, setFocused] = useState(false);
   const isPhone = keyboardType === 'phone-pad';
   return (
@@ -20,7 +20,7 @@ export const Field = memo(function Field({ label, value, onChangeText, placehold
         <View style={styles.inputWrap}>
           {compact ? <Text style={styles.insetLabel}>{label}</Text> : null}
           <TextInput style={[styles.input, compact ? styles.compactInput : null, multiline ? styles.multilineInput : null, isPhone ? styles.phone : null]}
-            value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.textMuted}
+            value={value} onChangeText={onChangeText} editable={editable} placeholder={placeholder} placeholderTextColor={colors.textMuted}
             keyboardType={keyboardType} multiline={multiline} textAlign="right" accessibilityLabel={label}
             onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} selectionColor={colors.primary} />
         </View>

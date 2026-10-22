@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { useApp } from '@/hooks/useApp';
 import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { useNotificationNavigation } from '@/hooks/useNotificationNavigation';
@@ -10,7 +11,8 @@ import { Header } from '@/components/layout/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
-export default function NotificationsScreen() {
+export default function NotificationsScreen() { return <AccountGate><AccountNotificationsScreen /></AccountGate>; }
+function AccountNotificationsScreen() {
   const { contentInset } = useFloatingTabBarLayout();
   const { role, notifications, markNotificationsRead } = useApp();
   const openNotification = useNotificationNavigation();

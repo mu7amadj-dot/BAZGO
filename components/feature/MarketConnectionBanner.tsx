@@ -10,9 +10,9 @@ export const MarketConnectionBanner = memo(function MarketConnectionBanner(_: Ma
   const router = useRouter();
   if (booking.authenticated && !booking.syncError && !booking.loading) return null;
   return <View style={styles.card}>
-    <MaterialCommunityIcons name={booking.syncError ? 'cloud-alert-outline' : 'shield-lock-outline'} color={colors.warning} size={22} />
-    <Text style={styles.text}>{!booking.authenticated ? 'وضع تجريبي محلي · الحجز الآمن يتطلب تسجيل الدخول' : booking.syncError ? `تعذر المزامنة: ${booking.syncError}` : 'جارٍ تحميل بيانات الخادم...'}</Text>
-    {!booking.authenticated ? <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}><Text style={styles.link}>دخول آمن</Text></Pressable> : booking.syncError ? <Pressable onPress={() => { void booking.reload(); }} style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}><Text style={styles.link}>إعادة المحاولة</Text></Pressable> : null}
+    <MaterialCommunityIcons name={booking.syncError ? 'cloud-off-outline' : 'shield-lock-outline'} color={colors.warning} size={22} />
+    <Text style={styles.text}>{!booking.authenticated ? 'يلزم تسجيل الدخول للوصول إلى بيانات حسابك' : booking.syncError ? `تعذر المزامنة: ${booking.syncError}` : 'جارٍ تحميل بيانات الخادم...'}</Text>
+    {!booking.authenticated ? <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}><Text style={styles.link}>تسجيل الدخول</Text></Pressable> : booking.syncError ? <Pressable onPress={() => { void booking.reload(); }} style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}><Text style={styles.link}>إعادة المحاولة</Text></Pressable> : null}
   </View>;
 });
 const styles=StyleSheet.create({

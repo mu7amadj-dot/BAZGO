@@ -7,4 +7,3 @@ export { EmptyState } from './ui/EmptyState';
 export { Header } from './layout/Header';
 export { FreightCard } from './feature/FreightCard';
 export { DriverCard } from './feature/DriverCard';
-export { RoleSwitcher } from './feature/RoleSwitcher';

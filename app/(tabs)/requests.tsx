@@ -5,7 +5,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Redirect, useRouter } from 'expo-router';
 import { useApp } from '@/hooks/useApp';
 import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
-import { matchDrivers } from '@/services/matchingService';
+import { matchesDriverProfile } from '@/services/freightOverviewService';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { PROVINCES, VEHICLES } from '@/constants/config';
 import { Header } from '@/components/layout/Header';
 import { FreightCard } from '@/components/feature/FreightCard';
@@ -14,10 +15,11 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { colors, layout, spacing } from '@/constants/theme';
 
-export default function RequestsScreen() {
+export default function RequestsScreen() { return <AccountGate><AvailableLoadsScreen /></AccountGate>; }
+function AvailableLoadsScreen() {
   const router = useRouter();
   const { contentInset } = useFloatingTabBarLayout();
-  const { role, requests, drivers } = useApp();
+  const { role, requests, driverProfile } = useApp();
   const isMerchant = role === 'merchant';
   const [province, setProvince] = useState<string>('all');
   const [vehicle, setVehicle] = useState<string>('all');
@@ -66,7 +68,7 @@ export default function RequestsScreen() {
           return (
             <FreightCard
               request={item}
-              matched={!isMerchant && matchDrivers(item, drivers).length > 0}
+              matched={!isMerchant && matchesDriverProfile(item, driverProfile)}
               onPress={() => router.push(isMerchant ? `/applicants/${item.id}` : `/freight/${item.id}`)}
             />
           );

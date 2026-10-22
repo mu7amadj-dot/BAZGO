@@ -1,57 +1,43 @@
-// Powered by OnSpace.AI
-import { VEHICLES } from '@/constants/config';
-import { DriverProfile, MerchantProfile, UserRole } from '@/services/types';
+import { PROVINCES, VEHICLES } from '@/constants/config';
+import type { UserRole } from './types';
 
 export interface RegistrationForm {
-  name: string;
-  phone: string;
-  province: string;
-  companyName: string;
-  location: string;
-  fatherName: string;
-  grandfatherName: string;
-  vehicleType: string;
-  maxCapacity: string;
-  driverPhoto: string;
-  licensePhoto: string;
-  vehiclePhoto: string;
+  name: string; phone: string; province: string; companyName: string; location: string;
+  fatherName: string; grandfatherName: string; vehicleType: string; maxCapacity: string;
+  driverPhoto: string; licensePhoto: string; vehiclePhoto: string;
 }
 export const emptyRegistrationForm: RegistrationForm = {
-  name: '', phone: '', province: '', companyName: '', location: '',
-  fatherName: '', grandfatherName: '', vehicleType: '', maxCapacity: '',
-  driverPhoto: '', licensePhoto: '', vehiclePhoto: '',
+  name: '', phone: '', province: '', companyName: '', location: '', fatherName: '', grandfatherName: '',
+  vehicleType: '', maxCapacity: '', driverPhoto: '', licensePhoto: '', vehiclePhoto: '',
 };
-
-export function normalizePhone(value: string): string {
-  return value.trim().replace(/[٠-٩۰-۹]/g, (digit) => {
+export function normalizeDigits(value: string): string {
+  return value.replace(/[٠-٩۰-۹]/g, (digit) => {
     const code = digit.charCodeAt(0);
     return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
-  }).replace(/[\s()-]/g, '') || '07701234567';
+  });
 }
-
-// The existing local demonstration remains local; no SMS or account API is used.
-export function prepareDemoRegistration(role: UserRole, form: RegistrationForm): {
-  name: string; phone: string; merchantProfile?: MerchantProfile; driverProfile?: DriverProfile;
-} {
+export function normalizePhone(value: string): string {
+  const phone = normalizeDigits(value).trim().replace(/[\s()-]/g, '');
+  if (/^07\d{9}$/.test(phone)) return `+964${phone.slice(1)}`;
+  if (/^9647\d{9}$/.test(phone)) return `+${phone}`;
+  return phone;
+}
+export function prepareRegistration(role: UserRole, form: RegistrationForm): { name: string; profile: Record<string, string> } {
+  const name = form.name.trim();
+  if (!name || name.length > 120) throw new Error('أدخل اسماً صحيحاً لا يتجاوز 120 حرفاً');
   const phone = normalizePhone(form.phone);
+  if (!/^\+9647\d{9}$/.test(phone)) throw new Error('أدخل رقم هاتف عراقي صحيحاً، مثال: 07XXXXXXXXX');
+  if (!PROVINCES.includes(form.province)) throw new Error('اختر المحافظة');
+  const common = { phone, province: form.province };
   if (role === 'merchant') {
-    return {
-      name: form.name.trim() || 'أبو محمد', phone,
-      merchantProfile: {
-        companyName: form.companyName.trim() || 'شركة أبو محمد التجارية',
-        location: form.location.trim() || 'بغداد - المنصور', province: form.province || 'بغداد', phone,
-      },
-    };
+    if (!form.companyName.trim() || !form.location.trim()) throw new Error('أكمل اسم الشركة والموقع');
+    return { name, profile: { ...common, companyName: form.companyName.trim(), location: form.location.trim() } };
   }
-  const vehicleType = form.vehicleType || 'canter';
-  const capacity = VEHICLES.find((vehicle) => vehicle.id === vehicleType)?.capacity ?? 7;
-  return {
-    name: [form.name.trim() || 'علي', form.fatherName.trim(), form.grandfatherName.trim()].filter(Boolean).join(' '),
-    phone,
-    driverProfile: {
-      fatherName: form.fatherName.trim(), grandfatherName: form.grandfatherName.trim(),
-      province: form.province || 'بغداد', vehicleType, maxCapacity: form.maxCapacity.trim() || String(capacity),
-      driverPhoto: form.driverPhoto, licensePhoto: form.licensePhoto, vehiclePhoto: form.vehiclePhoto, phone,
-    },
-  };
+  if (!form.fatherName.trim() || !form.grandfatherName.trim()) throw new Error('أكمل اسم الأب والجد');
+  if (!VEHICLES.some((vehicle) => vehicle.id === form.vehicleType)) throw new Error('اختر نوع المركبة');
+  const capacity = Number(normalizeDigits(form.maxCapacity));
+  if (!Number.isFinite(capacity) || capacity <= 0 || capacity > 1000) throw new Error('أدخل أقصى حمولة صحيحة بالطن');
+  return { name, profile: { ...common, fatherName: form.fatherName.trim(), grandfatherName: form.grandfatherName.trim(),
+    vehicleType: form.vehicleType, maxCapacity: String(capacity), driverPhoto: form.driverPhoto,
+    licensePhoto: form.licensePhoto, vehiclePhoto: form.vehiclePhoto } };
 }

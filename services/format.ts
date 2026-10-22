@@ -11,7 +11,7 @@ export function formatWeight(tons: number): string {
 }
 
 export function formatDistance(km: number): string {
-  return `${km} كم`;
+  return Number.isFinite(km) && km > 0 ? `${km} كم` : 'غير محددة';
 }
 
 const AR_MONTHS = [

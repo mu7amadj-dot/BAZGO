@@ -1,12 +1,9 @@
 // Powered by OnSpace.AI
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAlert } from '@/template';
-import { useApp } from '@/hooks/useApp';
-import { PROVINCES, VEHICLES, CARGO_TYPES } from '@/constants/config';
-import { FreightRequest } from '@/services/types';
+import { useCreateRequest } from '@/hooks/useCreateRequest';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { formatIQD } from '@/services/format';
 import { Header } from '@/components/layout/Header';
 import { Field } from '@/components/ui/Field';
@@ -15,72 +12,11 @@ import { ImageUpload } from '@/components/ui/ImageUpload';
 import { Button } from '@/components/ui/Button';
 import { colors, layout, spacing, typography } from '@/constants/theme';
 
-export default function CreateRequestScreen() {
-  const router = useRouter();
+export default function CreateRequestScreen() { return <AccountGate><CreateLoadScreen /></AccountGate>; }
+function CreateLoadScreen() {
   const insets = useSafeAreaInsets();
-  const { showAlert } = useAlert();
-  const { merchantName, addRequest } = useApp();
-
-  const [pickupProvince, setPickupProvince] = useState('');
-  const [deliveryProvince, setDeliveryProvince] = useState('');
-  const [pickupAddress, setPickupAddress] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
-  const [weight, setWeight] = useState('');
-  const [cargoType, setCargoType] = useState('');
-  const [description, setDescription] = useState('');
-  const [cargoImage, setCargoImage] = useState('');
-  const [vehicle, setVehicle] = useState('');
-  const [price, setPrice] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  const provinceItems = useMemo(() => PROVINCES.map((p) => ({ id: p, label: p, icon: 'map-marker' })), []);
-  const vehicleItems = useMemo(
-    () => VEHICLES.map((v) => ({ id: v.id, label: v.label, icon: v.icon, meta: `حتى ${v.capacity} طن` })),
-    []
-  );
-  const cargoItems = useMemo(() => CARGO_TYPES.map((c) => ({ id: c, label: c, icon: 'package-variant' })), []);
-
-  const priceNum = parseInt(price || '0', 10);
-
-  const submit = async () => {
-    if (submitting) return;
-    if (!pickupProvince || !deliveryProvince || !weight || !cargoType || !vehicle || !price) {
-      showAlert('بيانات ناقصة', 'يرجى إكمال المحافظات والحمولة والمركبة والسعر.');
-      return;
-    }
-    if (!Number.isFinite(Number(weight)) || Number(weight) <= 0 || !Number.isFinite(priceNum) || priceNum <= 0) {
-      showAlert('بيانات غير صالحة', 'أدخل وزناً وسعراً أكبر من صفر.'); return;
-    }
-    const req: FreightRequest = {
-      id: `r${Date.now()}`,
-      merchantName: merchantName || 'تاجر BAZGO',
-      merchantRating: 4.7,
-      pickupProvince,
-      pickupArea: '',
-      pickupAddress,
-      deliveryProvince,
-      deliveryArea: '',
-      deliveryAddress,
-      weightTons: parseFloat(weight) || 0,
-      cargoType,
-      cargoDescription: description,
-      cargoImage: cargoImage || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&q=80',
-      vehicleType: vehicle,
-      priceIQD: priceNum,
-      pickupDate: new Date(Date.now() + 5 * 86400000).toISOString(),
-      notes,
-      status: 'open',
-      distanceKm: 350,
-      createdAt: Date.now(),
-    };
-    setSubmitting(true);
-    try {
-      await addRequest(req);
-      router.replace('/(tabs)');
-    } catch (error) { showAlert('تعذر النشر', error instanceof Error ? error.message : 'حاول مجدداً.'); }
-    finally { setSubmitting(false); }
-  };
+  const { form, setField, provinceItems, vehicleItems, cargoItems, priceNum, submit, submitting } = useCreateRequest();
+  const { pickupProvince, deliveryProvince, pickupAddress, deliveryAddress, weight, cargoType, description, cargoImage, vehicle, price, notes, pickupDate, distance } = form;
 
   return (
     <View style={styles.screen}>
@@ -96,9 +32,9 @@ export default function CreateRequestScreen() {
             placeholder="اضغط لاختيار المحافظة"
             items={provinceItems}
             selectedId={pickupProvince}
-            onSelect={setPickupProvince}
+            onSelect={(value) => setField('pickupProvince', value)}
           />
-          <Field label="عنوان التحميل" value={pickupAddress} onChangeText={setPickupAddress} placeholder="المنطقة والشارع" />
+          <Field label="عنوان التحميل" value={pickupAddress} onChangeText={(value) => setField('pickupAddress', value)} placeholder="المنطقة والشارع" />
 
           <Text style={styles.section}>موقع التفريغ</Text>
           <SelectField
@@ -107,24 +43,24 @@ export default function CreateRequestScreen() {
             placeholder="اضغط لاختيار المحافظة"
             items={provinceItems}
             selectedId={deliveryProvince}
-            onSelect={setDeliveryProvince}
+            onSelect={(value) => setField('deliveryProvince', value)}
           />
-          <Field label="عنوان التفريغ" value={deliveryAddress} onChangeText={setDeliveryAddress} placeholder="المنطقة والشارع" />
+          <Field label="عنوان التفريغ" value={deliveryAddress} onChangeText={(value) => setField('deliveryAddress', value)} placeholder="المنطقة والشارع" />
 
           <Text style={styles.section}>الحمولة</Text>
-          <Field label="الوزن (طن)" value={weight} onChangeText={setWeight} placeholder="مثال: 20" keyboardType="numeric" />
+          <Field label="الوزن (طن)" value={weight} onChangeText={(value) => setField('weight', value)} placeholder="مثال: 20" keyboardType="numeric" />
           <SelectField
             label="نوع الحمولة"
             title="اختر نوع الحمولة"
             placeholder="اضغط لاختيار نوع الحمولة"
             items={cargoItems}
             selectedId={cargoType}
-            onSelect={setCargoType}
+            onSelect={(value) => setField('cargoType', value)}
           />
-          <Field label="وصف الحمولة" value={description} onChangeText={setDescription} placeholder="تفاصيل إضافية" multiline />
+          <Field label="وصف الحمولة" value={description} onChangeText={(value) => setField('description', value)} placeholder="تفاصيل إضافية" multiline />
           <Text style={styles.imageLabel}>صورة عن البضاعة (اختياري)</Text>
           <View style={styles.cargoImageWrap}>
-            <ImageUpload label="اضغط لإضافة صورة" value={cargoImage} onChange={setCargoImage} icon="image-plus" />
+            <ImageUpload label="اضغط لإضافة صورة" value={cargoImage} onChange={(value) => setField('cargoImage', value)} disabled={submitting} icon="image-plus" />
           </View>
 
           <Text style={styles.section}>المركبة المطلوبة</Text>
@@ -134,13 +70,16 @@ export default function CreateRequestScreen() {
             placeholder="اضغط لاختيار نوع المركبة"
             items={vehicleItems}
             selectedId={vehicle}
-            onSelect={setVehicle}
+            onSelect={(value) => setField('vehicle', value)}
           />
 
+          <Text style={styles.section}>موعد التحميل والمسافة</Text>
+          <Field label="تاريخ التحميل (YYYY-MM-DD)" value={pickupDate} onChangeText={(value) => setField('pickupDate', value)} placeholder="2026-10-25" />
+          <Field label="المسافة بالكيلومتر (اختياري)" value={distance} onChangeText={(value) => setField('distance', value)} placeholder="اتركها فارغة إن كانت غير معروفة" keyboardType="numeric" />
           <Text style={styles.section}>السعر والملاحظات</Text>
-          <Field label="سعر النقل (دينار عراقي)" value={price} onChangeText={setPrice} placeholder="مثال: 1500000" keyboardType="numeric" />
+          <Field label="سعر النقل (دينار عراقي)" value={price} onChangeText={(value) => setField('price', value)} placeholder="مثال: 1500000" keyboardType="numeric" />
           {priceNum > 0 ? <Text style={styles.priceHint}>{formatIQD(priceNum)}</Text> : null}
-          <Field label="ملاحظات إضافية" value={notes} onChangeText={setNotes} placeholder="تعليمات خاصة" multiline />
+          <Field label="ملاحظات إضافية" value={notes} onChangeText={(value) => setField('notes', value)} placeholder="تعليمات خاصة" multiline />
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.sm }]}>

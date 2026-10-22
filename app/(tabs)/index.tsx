@@ -8,6 +8,7 @@ import { useAlert } from '@/template';
 import { useFreightOverview } from '@/hooks/useFreightOverview';
 import { useViewport } from '@/hooks/useViewport';
 import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { BrandMark } from '@/components/feature/BrandMark';
 import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -16,7 +17,8 @@ import { FreightCard } from '@/components/feature/FreightCard';
 import { FreightRequest } from '@/services/types';
 import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 
-export default function HomeScreen() {
+export default function HomeScreen() { return <AccountGate><FreightHomeScreen /></AccountGate>; }
+function FreightHomeScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const { width } = useViewport();

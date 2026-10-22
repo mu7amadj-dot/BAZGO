@@ -7,8 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
 import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { useAlert, useAuth } from '@/template';
-import { useBooking } from '@/hooks/useBooking';
-import { RoleSwitcher } from '@/components/feature/RoleSwitcher';
+import { AccountGate } from '@/components/auth/AccountGate';
 import { Button } from '@/components/ui/Button';
 import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
@@ -19,19 +18,18 @@ const MENU: { icon: string; label: string; route?: string }[] = [
   { icon: 'help-circle-outline', label: 'المساعدة والدعم' },
 ];
 
-export default function ProfileScreen() {
+export default function ProfileScreen() { return <AccountGate><AccountProfileScreen /></AccountGate>; }
+function AccountProfileScreen() {
   const router = useRouter();
   const { contentInset } = useFloatingTabBarLayout();
   const { showAlert } = useAlert();
   const auth = useAuth();
-  const booking = useBooking();
   const logout = async () => {
-    if (!booking.authenticated) { router.replace('/auth'); return; }
     const result = await auth.logout();
     if (result.error) { showAlert('تعذر تسجيل الخروج', result.error); return; }
-    router.replace('/auth');
+    router.replace('/');
   };
-  const { role, setRole, merchantName, driverName, merchantProfile, driverProfile } = useApp();
+  const { role, merchantName, driverName, merchantProfile, driverProfile } = useApp();
   const isMerchant = role === 'merchant';
   const name = isMerchant ? merchantName : driverName;
   const profile = isMerchant ? merchantProfile : driverProfile;
@@ -53,7 +51,7 @@ export default function ProfileScreen() {
         <Text style={styles.name}>{name}</Text>
         <View style={styles.verified}>
           <MaterialCommunityIcons name="check-decagram" size={14} color={colors.info} />
-          <Text style={styles.verifiedText}>{booking.authenticated ? 'حساب مسجّل على الخادم' : 'حساب تجريبي محلي'}</Text>
+          <Text style={styles.verifiedText}>حساب مسجّل على الخادم</Text>
         </View>
         {(province || phone) ? (
           <View style={styles.chipsRow}>
@@ -90,17 +88,13 @@ export default function ProfileScreen() {
         ) : null}
       </View>
 
-      {!booking.authenticated ? <>
-        <Text style={styles.switchLabel}>تبديل الحساب (وضع تجريبي)</Text>
-        <RoleSwitcher role={role} onChange={setRole} />
-        <Button title="تسجيل الدخول الآمن" onPress={() => router.push('/login')} />
-      </> : <Text style={styles.switchLabel}>نوع الحساب ثابت · الحجوزات محفوظة على الخادم</Text>}
+      <Text style={styles.switchLabel}>{isMerchant ? 'حساب تاجر' : 'حساب سائق'} · الحجوزات محفوظة على الخادم</Text>
 
       <View style={styles.menu}>
         {MENU.map((m) => (
           <Pressable
             key={m.label}
-            style={({ pressed }) => [styles.menuItem, pressed && styles.menuPressed]}
+            style={({ pressed }) => [styles.menuItem, pressed ? styles.menuPressed : null]}
             onPress={() => openMenu(m)}
             accessibilityRole="button"
             accessibilityLabel={m.label}
