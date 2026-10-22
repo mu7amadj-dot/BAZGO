@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Redirect } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -36,7 +36,8 @@ export default function LoginScreen() {
               <Field compact icon="account-outline" label="اسم الأب" value={login.form.fatherName} onChangeText={(value) => login.setField('fatherName', value)} editable={!login.operationLoading} />
               <Field compact icon="account-outline" label="اسم الجد" value={login.form.grandfatherName} onChangeText={(value) => login.setField('grandfatherName', value)} editable={!login.operationLoading} />
             </>}
-            <Field compact icon="phone-outline" label="رقم الهاتف للتواصل" value={login.form.phone} onChangeText={(value) => login.setField('phone', value)} placeholder="07XXXXXXXXX" keyboardType="phone-pad" editable={!login.operationLoading} />
+            <Field compact icon="phone-outline" label={login.verifiedPhone ? 'رقم الهاتف المتحقق منه' : 'رقم الهاتف للتواصل'} value={login.form.phone} onChangeText={(value) => login.setField('phone', value)} placeholder="07XXXXXXXXX" keyboardType="phone-pad" editable={!login.operationLoading && !login.verifiedPhone} />
+            {login.verifiedPhone ? <Text style={styles.caption}>تم التحقق من ملكية الرقم عبر SMS؛ لا يمكن تغييره من بيانات الحساب.</Text> : null}
             <SelectField compact icon="map-marker-outline" label="المحافظة" title="اختر المحافظة" items={login.provinceItems} selectedId={login.form.province} onSelect={(value) => login.setField('province', value)} />
             {!isMerchant ? <>
               <SelectField compact icon="truck-outline" label="نوع المركبة" title="اختر نوع المركبة" items={login.vehicleItems} selectedId={login.form.vehicleType} onSelect={(value) => login.setField('vehicleType', value)} />
@@ -51,28 +52,22 @@ export default function LoginScreen() {
             </> : null}
           </> : <Text style={styles.subtitle}>اختر تاجر أو سائق لعرض الحقول.</Text>}
         </View> : <View>
-          <Text style={styles.title}>{login.mode === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول'}</Text>
-          <Text style={styles.subtitle}>التحقق عبر البريد الإلكتروني. رقم الهاتف يُضاف للتواصل بعد التحقق، ولا تُرسل رموز SMS.</Text>
-          <Text style={styles.label}>البريد الإلكتروني</Text>
-          <TextInput style={styles.input} accessibilityLabel="البريد الإلكتروني" value={login.email} onChangeText={login.setEmail} autoCapitalize="none" autoCorrect={false} keyboardType="email-address" textContentType="emailAddress" editable={!login.operationLoading && !login.codeSent} />
-          <Text style={styles.label}>كلمة المرور · 6 أحرف على الأقل</Text>
-          <TextInput style={styles.input} accessibilityLabel="كلمة المرور" value={login.password} onChangeText={login.setPassword} secureTextEntry textContentType={login.mode === 'register' ? 'newPassword' : 'password'} editable={!login.operationLoading && !login.codeSent} />
-          {login.mode === 'register' ? <>
-            <Text style={styles.label}>تأكيد كلمة المرور</Text>
-            <TextInput style={styles.input} accessibilityLabel="تأكيد كلمة المرور" value={login.confirmation} onChangeText={login.setConfirmation} secureTextEntry editable={!login.operationLoading && !login.codeSent} />
-            {login.codeSent ? <>
-              <Text style={styles.subtitle}>أدخل الرمز المرسل إلى {login.email}. تحقق من مجلد الرسائل غير المرغوب فيها أيضاً.</Text>
-              <Field label="رمز البريد الإلكتروني (4 أرقام)" value={login.otp} onChangeText={login.setOtp} keyboardType="numeric" editable={!login.operationLoading} />
-              <Button variant="ghost" title={login.seconds ? `إعادة الإرسال خلال ${login.seconds} ثانية` : 'إعادة إرسال الرمز'} onPress={login.resend} disabled={login.seconds > 0 || login.operationLoading} />
-            </> : null}
-          </> : null}
+          <Text style={styles.title}>{login.codeSent ? 'تحقق من رقم هاتفك' : 'الدخول والتسجيل برقم الهاتف'}</Text>
+          <Text style={styles.subtitle}>أدخل رقمك العراقي لاستلام رمز تحقق عبر SMS، دون بريد إلكتروني أو كلمة مرور. للحساب الجديد تختار تاجر أو سائق بعد التحقق.</Text>
+          <Field compact icon="phone-outline" label="رقم الهاتف العراقي" value={login.phone} onChangeText={login.setPhone} placeholder="07XXXXXXXXX" keyboardType="phone-pad" textContentType="telephoneNumber" maxLength={24} editable={!login.operationLoading && !login.codeSent} />
+          {login.codeSent ? <>
+            <Text style={styles.subtitle}>أرسلنا الرمز إلى {login.sentPhone}. لا تشارك رمز التحقق مع أي شخص.</Text>
+            <Field compact icon="shield-key-outline" label={`رمز التحقق (${login.codeLength} أرقام)`} value={login.otp} onChangeText={login.setOtp} keyboardType="numeric" textContentType="oneTimeCode" maxLength={login.codeLength} editable={!login.operationLoading} />
+            <Text accessibilityLiveRegion="polite" style={styles.caption}>{login.expiresIn > 0 ? `صلاحية الرمز: ${Math.floor(login.expiresIn / 60)}:${String(login.expiresIn % 60).padStart(2, '0')}` : 'انتهت صلاحية الرمز. أرسل رمزاً جديداً.'}</Text>
+            <Button variant="ghost" title={login.seconds ? `إعادة الإرسال خلال ${login.seconds} ثانية` : 'إعادة إرسال الرمز'} onPress={login.resend} disabled={login.seconds > 0 || login.operationLoading} />
+          </> : <Text style={styles.caption}>بالضغط على إرسال الرمز توافق على استلام رسالة SMS للتحقق من رقمك.</Text>}
         </View>}
         {login.error || login.syncError ? <View style={styles.error}><MaterialCommunityIcons name="alert-circle-outline" color={colors.danger} size={20} /><Text style={styles.errorText}>{login.error || login.syncError}</Text></View> : null}
         {login.notice ? <Text accessibilityLiveRegion="polite" style={styles.notice}>{login.notice}</Text> : null}
         {login.syncError && login.user ? <Button title="إعادة تحميل الحساب" onPress={login.reload} /> : <Button
-          title={login.user ? 'حفظ الحساب والمتابعة' : login.mode === 'login' ? 'تسجيل الدخول' : login.codeSent ? 'تحقق وأنشئ الحساب' : 'إرسال رمز التحقق'}
+          title={login.user ? 'حفظ الحساب والمتابعة' : login.codeSent ? 'تحقق وتابع' : 'إرسال رمز SMS'}
           onPress={login.submit} loading={login.operationLoading} disabled={!!login.user && !login.role} />}
-        {!login.user ? <Pressable onPress={login.toggle} disabled={login.operationLoading} accessibilityRole="button" style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>{login.mode === 'login' ? 'إنشاء حساب جديد' : 'لديك حساب؟ تسجيل الدخول'}</Text></Pressable> : <Button title="تسجيل الخروج" variant="ghost" onPress={login.logout} loading={login.operationLoading} />}
+        {!login.user ? login.codeSent ? <Pressable onPress={login.changePhone} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel="تغيير رقم الهاتف" style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>تغيير رقم الهاتف</Text></Pressable> : null : <Button title="تسجيل الخروج" variant="ghost" onPress={login.logout} loading={login.operationLoading} />}
       </ScrollView>
     </KeyboardAvoidingView>
   </SafeAreaView>;
@@ -87,7 +82,6 @@ const styles = StyleSheet.create({
   label: { ...typography.label, color: colors.textSubtle, textAlign: 'right', marginBottom: spacing.xs },
   caption: { ...typography.caption, color: colors.textSubtle, textAlign: 'right', marginTop: spacing.sm },
   uploadRow: { flexDirection: 'row-reverse', gap: spacing.sm },
-  input: { ...typography.body, backgroundColor: colors.surface, color: colors.text, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, minHeight: layout.touchTarget, padding: spacing.md, marginBottom: spacing.md },
   link: { minHeight: layout.touchTarget, justifyContent: 'center', alignItems: 'center' },
   linkText: { ...typography.bodyStrong, color: colors.primary }, pressed: { opacity: 0.7 },
   error: { flexDirection: 'row-reverse', gap: spacing.sm, alignItems: 'center' },

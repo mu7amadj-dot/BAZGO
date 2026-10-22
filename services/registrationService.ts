@@ -20,6 +20,7 @@ export function normalizePhone(value: string): string {
   const phone = normalizeDigits(value).trim().replace(/[\s()-]/g, '');
   if (/^07\d{9}$/.test(phone)) return `+964${phone.slice(1)}`;
   if (/^9647\d{9}$/.test(phone)) return `+${phone}`;
+  if (/^009647\d{9}$/.test(phone)) return `+${phone.slice(2)}`;
   return phone;
 }
 export function prepareRegistration(role: UserRole, form: RegistrationForm): { name: string; profile: Record<string, string> } {

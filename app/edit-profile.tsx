@@ -44,7 +44,7 @@ function EditAccountScreen() {
       return;
     }
     try {
-      const nextProfile = isMerchant ? { ...merchantProfile, companyName: companyName.trim(), location: location.trim(), province, phone: phone.trim() } : { ...driverProfile, province, phone: phone.trim() };
+      const nextProfile = isMerchant ? { ...merchantProfile, companyName: companyName.trim(), location: location.trim(), province, phone: secureProfile.verifiedPhone || phone.trim() } : { ...driverProfile, province, phone: secureProfile.verifiedPhone || phone.trim() };
       await secureProfile.saveProfile(finalName, { ...nextProfile });
       router.back();
     } catch (error) { showAlert('تعذر حفظ البيانات', error instanceof Error ? error.message : 'حاول مجدداً.'); }
@@ -86,9 +86,11 @@ function EditAccountScreen() {
             selectedId={province}
             onSelect={setProvince}
           />
-          <Field label="رقم الهاتف" value={phone} onChangeText={setPhone} placeholder="07XX XXX XXXX" keyboardType="phone-pad" />
+          <Field label={secureProfile.verifiedPhone ? 'رقم الهاتف المتحقق منه' : 'رقم الهاتف للتواصل'} value={secureProfile.verifiedPhone || phone} onChangeText={setPhone} placeholder="07XX XXX XXXX" keyboardType="phone-pad" editable={!secureProfile.verifiedPhone && !secureProfile.phoneLoading && !secureProfile.phoneError && !secureProfile.busy} />
+          {secureProfile.verifiedPhone ? <Text style={styles.hint}>رقم تسجيل الدخول ثابت لحماية حسابك؛ تغييره يحتاج تحقق SMS جديد.</Text> : null}
+          {secureProfile.phoneError ? <Button title="إعادة تحميل رقم الهاتف" variant="ghost" onPress={secureProfile.retryPhone} /> : null}
 
-          <Button title="حفظ التغييرات" variant="emphasis" onPress={save} loading={secureProfile.busy} />
+          <Button title="حفظ التغييرات" variant="emphasis" onPress={save} loading={secureProfile.busy} disabled={secureProfile.phoneLoading || !!secureProfile.phoneError} />
           <Text style={styles.hint}>تُحفظ التغييرات في حسابك مباشرةً</Text>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -1,19 +1,21 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/template';
 import { useBooking } from './useBooking';
+import { useVerifiedPhone } from './useVerifiedPhone';
 import { PROVINCES, VEHICLES } from '@/constants/config';
 import type { UserRole } from '@/services/types';
 import { emptyRegistrationForm, normalizeDigits, type RegistrationForm } from '@/services/registrationService';
 import { prepareServerProfile } from '@/services/accountProfileService';
+import { PhoneAuthError, sendPhoneCode, verifyPhoneCode } from '@/services/phoneAuthService';
 
 export function useSecureLogin() {
   const auth = useAuth();
   const booking = useBooking();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmation, setConfirmation] = useState('');
+  const identity = useVerifiedPhone();
+  const [phone, setPhone] = useState('');
+  const [sentPhone, setSentPhone] = useState('');
   const [otp, setOtpValue] = useState('');
+  const [codeLength, setCodeLength] = useState(6);
   const [codeSent, setCodeSent] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
   const [form, setForm] = useState<RegistrationForm>({ ...emptyRegistrationForm });
@@ -21,69 +23,83 @@ export function useSecureLogin() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [resendAt, setResendAt] = useState(0);
+  const [expiresAt, setExpiresAt] = useState(0);
   const [seconds, setSeconds] = useState(0);
+  const [expiresIn, setExpiresIn] = useState(0);
+  const pending = useRef(false);
   const operationLoading = auth.operationLoading || busy;
   const provinceItems = useMemo(() => PROVINCES.map((name) => ({ id: name, label: name, icon: 'map-marker-outline' })), []);
   const vehicleItems = useMemo(() => VEHICLES.map((vehicle) => ({ id: vehicle.id, label: vehicle.label, icon: vehicle.icon, meta: `حتى ${vehicle.capacity} طن` })), []);
   const setField = useCallback((field: keyof RegistrationForm, value: string) => setForm((current) => ({ ...current, [field]: value })), []);
-  const setOtp = useCallback((value: string) => setOtpValue(normalizeDigits(value).replace(/\D/g, '').slice(0, 4)), []);
+  const setOtp = useCallback((value: string) => setOtpValue(normalizeDigits(value).replace(/\D/g, '').slice(0, codeLength)), [codeLength]);
   useEffect(() => {
-    const update = () => setSeconds(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
+    setRole(null); setForm({ ...emptyRegistrationForm }); setError(''); setNotice('');
+  }, [auth.user?.id]);
+  useEffect(() => {
+    if (identity.phone) setForm((current) => ({ ...current, phone: identity.phone }));
+  }, [identity.phone]);
+  useEffect(() => {
+    const update = () => {
+      setSeconds(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
+      setExpiresIn(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+    };
     update(); const timer = setInterval(update, 1000); return () => clearInterval(timer);
-  }, [resendAt]);
+  }, [resendAt, expiresAt]);
+  const handleError = useCallback((issue: unknown) => {
+    setError(issue instanceof Error ? issue.message : 'تعذر إكمال العملية.');
+    if (issue instanceof PhoneAuthError && issue.retryAfter > 0) setResendAt((current) => Math.max(current, Date.now() + issue.retryAfter * 1000));
+  }, []);
   const sendCode = useCallback(async () => {
-    const result = await auth.sendOTP(email.trim().toLowerCase());
-    if (result.error) throw new Error(result.error);
-    setCodeSent(true); setResendAt(Date.now() + 60000); setNotice('تم إرسال رمز التحقق إلى بريدك الإلكتروني.');
-  }, [auth.sendOTP, email]);
+    const result = await sendPhoneCode(phone);
+    if (!result.sent || !Number.isInteger(result.codeLength) || result.codeLength < 4 || result.codeLength > 10) throw new Error('استجابة خدمة SMS غير صالحة.');
+    setSentPhone(result.phone); setCodeLength(result.codeLength); setCodeSent(true); setOtpValue('');
+    setResendAt(Date.now() + Math.max(60, result.retryAfter) * 1000);
+    setExpiresAt(Date.now() + result.expiresIn * 1000);
+    setNotice('تم إرسال رمز التحقق عبر SMS إلى رقم هاتفك.');
+  }, [phone]);
   const submit = useCallback(async () => {
-    if (operationLoading || auth.loading || booking.loading) return;
-    setBusy(true); setError(''); setNotice('');
+    if (pending.current || operationLoading || auth.loading || booking.loading || identity.loading) return;
+    pending.current = true; setBusy(true); setError(''); setNotice('');
     try {
       if (auth.user) {
-        if (booking.syncError) throw new Error('أعد المزامنة قبل إعداد الحساب');
-        if (!role) throw new Error('اختر نوع الحساب أولاً');
-        const account = await prepareServerProfile(role, form, auth.user.id);
+        if (booking.syncError || identity.error) throw new Error('أعد تحميل الحساب قبل المتابعة.');
+        if (!role) throw new Error('اختر نوع الحساب أولاً.');
+        const account = await prepareServerProfile(role, { ...form, phone: identity.phone || form.phone }, auth.user.id);
         await booking.setupAccount(role, account.name, account.profile);
-        return;
-      }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new Error('أدخل بريداً إلكترونياً صحيحاً');
-      if (password.length < 6) throw new Error('كلمة المرور يجب ألا تقل عن 6 أحرف');
-      if (mode === 'register') {
-        if (password !== confirmation) throw new Error('كلمتا المرور غير متطابقتين');
-        if (!codeSent) { await sendCode(); return; }
-        if (!/^\d{4}$/.test(otp)) throw new Error('أدخل رمز البريد المكوّن من 4 أرقام');
-        const result = await auth.verifyOTPAndLogin(email.trim().toLowerCase(), otp, { password });
-        if (result.error) throw new Error(result.error);
-        if (!result.user) throw new Error('لم يتم إنشاء جلسة تسجيل الدخول');
+      } else if (!codeSent) {
+        if (Date.now() < resendAt) throw new PhoneAuthError('انتظر قبل طلب رمز آخر.', Math.ceil((resendAt - Date.now()) / 1000));
+        await sendCode();
       } else {
-        const result = await auth.signInWithPassword(email.trim().toLowerCase(), password);
-        if (result.error) throw new Error(result.error);
-        if (!result.user) throw new Error('لم يتم إنشاء جلسة تسجيل الدخول');
+        if (Date.now() >= expiresAt) throw new PhoneAuthError('انتهت صلاحية الرمز. أرسل رمزاً جديداً.');
+        if (otp.length !== codeLength) throw new PhoneAuthError(`أدخل رمز التحقق المكوّن من ${codeLength} أرقام.`);
+        await verifyPhoneCode(sentPhone, otp);
+        setOtpValue(''); setCodeSent(false);
       }
-      setPassword(''); setConfirmation(''); setOtpValue('');
-    } catch (issue) { setError(issue instanceof Error ? issue.message : 'تعذر إكمال العملية'); }
-    finally { setBusy(false); }
-  }, [operationLoading, auth, booking.loading, booking.syncError, booking.setupAccount, role, form, email, password, confirmation, mode, codeSent, otp, sendCode]);
+    } catch (issue) { handleError(issue); }
+    finally { pending.current = false; setBusy(false); }
+  }, [operationLoading, auth, booking.loading, booking.syncError, booking.setupAccount, identity, role, form, codeSent, resendAt, expiresAt, codeLength, otp, sentPhone, sendCode, handleError]);
   const resend = useCallback(async () => {
-    if (Date.now() < resendAt || operationLoading) return;
-    setBusy(true); setError(''); setNotice('');
-    try { await sendCode(); setOtpValue(''); }
-    catch (issue) { setError(issue instanceof Error ? issue.message : 'تعذر إرسال الرمز'); }
-    finally { setBusy(false); }
-  }, [resendAt, operationLoading, sendCode]);
-  const toggle = useCallback(() => {
-    if (operationLoading) return;
-    setMode((current) => current === 'login' ? 'register' : 'login');
-    setCodeSent(false); setOtpValue(''); setPassword(''); setConfirmation(''); setError(''); setNotice('');
+    if (Date.now() < resendAt || pending.current || operationLoading) return;
+    pending.current = true; setBusy(true); setError(''); setNotice('');
+    try { await sendCode(); } catch (issue) { handleError(issue); }
+    finally { pending.current = false; setBusy(false); }
+  }, [resendAt, operationLoading, sendCode, handleError]);
+  const changePhone = useCallback(() => {
+    if (operationLoading || pending.current) return;
+    setCodeSent(false); setSentPhone(''); setOtpValue(''); setExpiresAt(0); setError(''); setNotice('');
   }, [operationLoading]);
+  const reload = useCallback(async () => { identity.retry(); await booking.reload(); }, [identity.retry, booking.reload]);
   const logout = useCallback(async () => {
-    if (operationLoading) return;
-    const result = await auth.logout();
-    if (result.error) setError(result.error);
-    else { setForm({ ...emptyRegistrationForm }); setRole(null); setCodeSent(false); setError(''); }
+    if (operationLoading || pending.current) return;
+    setBusy(true);
+    try {
+      const result = await auth.logout();
+      if (result.error) setError(result.error);
+      else { setPhone(''); setForm({ ...emptyRegistrationForm }); setRole(null); setCodeSent(false); setOtpValue(''); setError(''); }
+    } finally { setBusy(false); }
   }, [auth.logout, operationLoading]);
-  return { ...booking, user: auth.user, loading: auth.loading || booking.loading, operationLoading, mode, email, setEmail,
-    password, setPassword, confirmation, setConfirmation, otp, setOtp, codeSent, role, setRole, form, setField,
-    provinceItems, vehicleItems, error, notice, seconds, submit, resend, toggle, logout };
+  return { ...booking, reload, syncError: booking.syncError || identity.error, user: auth.user,
+    loading: auth.loading || booking.loading || identity.loading, operationLoading, phone, setPhone,
+    verifiedPhone: identity.phone, sentPhone, otp, setOtp, codeLength, codeSent, expiresIn,
+    role, setRole, form, setField, provinceItems, vehicleItems, error, notice, seconds, submit, resend, changePhone, logout };
 }

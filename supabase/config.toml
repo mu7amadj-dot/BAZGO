@@ -1,2 +1,6 @@
 [functions.bazgo-scheduler]
 verify_jwt = false
+
+# Public SMS onboarding; the function verifies Twilio OTP and enforces server-side limits.
+[functions.bazgo-phone-auth]
+verify_jwt = false

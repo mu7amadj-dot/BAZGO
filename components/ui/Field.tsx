@@ -7,9 +7,9 @@ import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 interface FieldProps {
   label: string; value: string; onChangeText: (text: string) => void; placeholder?: string;
   keyboardType?: 'default' | 'numeric' | 'phone-pad'; multiline?: boolean; error?: string;
-  icon?: string; compact?: boolean; editable?: boolean;
+  icon?: string; compact?: boolean; editable?: boolean; maxLength?: number; textContentType?: 'telephoneNumber' | 'oneTimeCode';
 }
-export const Field = memo(function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, error, icon, compact = false, editable = true }: FieldProps) {
+export const Field = memo(function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, error, icon, compact = false, editable = true, maxLength, textContentType }: FieldProps) {
   const [focused, setFocused] = useState(false);
   const isPhone = keyboardType === 'phone-pad';
   return (
@@ -22,6 +22,7 @@ export const Field = memo(function Field({ label, value, onChangeText, placehold
           <TextInput style={[styles.input, compact ? styles.compactInput : null, multiline ? styles.multilineInput : null, isPhone ? styles.phone : null]}
             value={value} onChangeText={onChangeText} editable={editable} placeholder={placeholder} placeholderTextColor={colors.textMuted}
             keyboardType={keyboardType} multiline={multiline} textAlign="right" accessibilityLabel={label}
+            maxLength={maxLength} textContentType={textContentType} autoComplete={textContentType === 'oneTimeCode' ? 'sms-otp' : isPhone ? 'tel' : 'off'}
             onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} selectionColor={colors.primary} />
         </View>
       </View>
