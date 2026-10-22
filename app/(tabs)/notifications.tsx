@@ -3,6 +3,7 @@ import React, { useEffect, useMemo } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useApp } from '@/hooks/useApp';
+import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { useNotificationNavigation } from '@/hooks/useNotificationNavigation';
 import { timeAgo } from '@/services/format';
 import { Header } from '@/components/layout/Header';
@@ -10,6 +11,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 export default function NotificationsScreen() {
+  const { contentInset } = useFloatingTabBarLayout();
   const { role, notifications, markNotificationsRead } = useApp();
   const openNotification = useNotificationNavigation();
   const list = useMemo(() => notifications.filter((n) => n.role === role), [notifications, role]);
@@ -19,7 +21,7 @@ export default function NotificationsScreen() {
   }, [role, markNotificationsRead]);
   return <View style={styles.screen}>
     <View style={styles.headerWrap}><Header title="الإشعارات" subtitle={`${list.length} إشعار`} /></View>
-    <FlatList data={list} keyExtractor={(n) => n.id} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}
+    <FlatList data={list} keyExtractor={(n) => n.id} contentContainerStyle={[styles.list, { paddingBottom: contentInset }]} showsVerticalScrollIndicator={false}
       ListHeaderComponent={<MarketConnectionBanner />}
       renderItem={({ item }) => <Pressable onPress={() => openNotification(item)} accessibilityRole="button" accessibilityLabel={item.title} style={({ pressed }) => [styles.card, !item.read ? styles.unread : null, pressed ? styles.pressed : null]}>
         <View style={styles.iconWrap}><MaterialCommunityIcons name="truck-fast" size={20} color={colors.primary} /></View>

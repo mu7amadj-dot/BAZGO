@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAlert } from '@/template';
 import { useFreightOverview } from '@/hooks/useFreightOverview';
 import { useViewport } from '@/hooks/useViewport';
+import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { BrandMark } from '@/components/feature/BrandMark';
 import { MarketConnectionBanner } from '@/components/feature/MarketConnectionBanner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -19,6 +20,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { showAlert } = useAlert();
   const { width } = useViewport();
+  const { contentInset } = useFloatingTabBarLayout();
   const { isMerchant, matchedIds, featuredRequests, province, setProvince, provinceItems, provinceLabel } = useFreightOverview();
   const columns = width >= layout.tabletBreakpoint ? 2 : 1;
   const createRequest = useCallback(() => router.push('/create-request'), [router]);
@@ -32,7 +34,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <FlatList key={`home-${columns}`} data={featuredRequests} numColumns={columns} keyExtractor={(request) => request.id}
-        style={styles.list} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} renderItem={renderItem}
+        style={styles.list} contentContainerStyle={[styles.content, { paddingBottom: contentInset }]} showsVerticalScrollIndicator={false} renderItem={renderItem}
         ListEmptyComponent={<EmptyState title={isMerchant ? 'لا توجد طلبات منشورة فعالة' : province === 'all' ? 'لا توجد حمولات بعد' : 'لا توجد حمولات مطابقة'} subtitle={isMerchant ? 'انشر حمولة جديدة عبر «اطلب ناقل». لا تظهر هنا الطلبات المسلّمة أو المكتملة أو الملغاة.' : province === 'all' ? 'ستظهر الحمولات المنشورة هنا.' : `لا توجد حمولات للتحميل أو التفريغ في ${provinceLabel}. اختر محافظة أخرى أو «عرض الكل».`} />}
         ListHeaderComponent={
           <View>

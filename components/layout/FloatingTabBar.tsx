@@ -1,9 +1,9 @@
 // Powered by OnSpace.AI
 import React, { memo } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { useNavigationIndicators } from '@/hooks/useNavigationIndicators';
 import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 
@@ -19,16 +19,11 @@ const icons: Record<string, { default: NavigationIcon; selected: NavigationIcon 
 };
 
 export const FloatingTabBar = memo(function FloatingTabBar({ state, descriptors, navigation }: FloatingTabBarProps) {
-  const insets = useSafeAreaInsets();
+  const { bottomPadding } = useFloatingTabBarLayout();
   const { hasUnreadNotifications } = useNavigationIndicators();
-  const bottomPadding = Platform.select({
-    ios: insets.bottom + spacing.sm,
-    android: insets.bottom + spacing.sm,
-    default: spacing.md,
-  });
 
   return (
-    <View style={[styles.container, { paddingBottom: bottomPadding }]}>
+    <View pointerEvents="box-none" style={[styles.container, { paddingBottom: bottomPadding }]}>
       <View style={styles.bar}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
@@ -68,7 +63,11 @@ export const FloatingTabBar = memo(function FloatingTabBar({ state, descriptors,
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.background,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.transparent,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     alignItems: 'center',

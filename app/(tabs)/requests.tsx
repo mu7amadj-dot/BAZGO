@@ -4,6 +4,7 @@ import { FlatList, StyleSheet, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Redirect, useRouter } from 'expo-router';
 import { useApp } from '@/hooks/useApp';
+import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { matchDrivers } from '@/services/matchingService';
 import { PROVINCES, VEHICLES } from '@/constants/config';
 import { Header } from '@/components/layout/Header';
@@ -15,6 +16,7 @@ import { colors, layout, spacing } from '@/constants/theme';
 
 export default function RequestsScreen() {
   const router = useRouter();
+  const { contentInset } = useFloatingTabBarLayout();
   const { role, requests, drivers } = useApp();
   const isMerchant = role === 'merchant';
   const [province, setProvince] = useState<string>('all');
@@ -51,7 +53,7 @@ export default function RequestsScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: contentInset }]}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <View style={styles.filters}>

@@ -11,6 +11,7 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
 
   const tabBarStyle = {
+    position: 'absolute' as const,
     height: Platform.select({ ios: insets.bottom + 60, android: insets.bottom + 60, default: 70 }),
     paddingTop: 8,
     paddingBottom: Platform.select({ ios: insets.bottom + 8, android: insets.bottom + 8, default: 8 }),

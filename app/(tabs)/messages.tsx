@@ -4,12 +4,14 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useApp } from '@/hooks/useApp';
+import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { Header } from '@/components/layout/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { colors, layout, radius, spacing, typography, shadow } from '@/constants/theme';
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const { contentInset } = useFloatingTabBarLayout();
   const { conversations, messages } = useApp();
 
   return (
@@ -21,7 +23,7 @@ export default function MessagesScreen() {
       <FlatList
         data={conversations}
         keyExtractor={(c) => c.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: contentInset }]}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => {
           const last = [...messages].reverse().find((m) => m.conversationId === item.id);

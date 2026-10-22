@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useApp } from '@/hooks/useApp';
+import { useFloatingTabBarLayout } from '@/hooks/useFloatingTabBarLayout';
 import { useAlert, useAuth } from '@/template';
 import { useBooking } from '@/hooks/useBooking';
 import { RoleSwitcher } from '@/components/feature/RoleSwitcher';
@@ -20,6 +21,7 @@ const MENU: { icon: string; label: string; route?: string }[] = [
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { contentInset } = useFloatingTabBarLayout();
   const { showAlert } = useAlert();
   const auth = useAuth();
   const booking = useBooking();
@@ -43,7 +45,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingBottom: contentInset }]} showsVerticalScrollIndicator={false}>
       <View style={styles.profileCard}>
         <View style={styles.avatar}>
           <MaterialCommunityIcons name={isMerchant ? 'store' : 'truck'} size={34} color={colors.onPrimary} />
