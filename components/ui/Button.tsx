@@ -10,6 +10,7 @@ interface ButtonProps {
 }
 export const Button = memo(function Button({ title, onPress, variant = 'primary', disabled = false, loading = false, fullWidth = true, icon }: ButtonProps) {
   const secondary = variant === 'outline' || variant === 'ghost';
+  const contentColor = secondary ? colors.primary : variant === 'emphasis' ? colors.onEmphasis : colors.onPrimary;
   return (
     <Pressable onPress={onPress} disabled={disabled || loading}
       style={({ pressed }) => [styles.base, fullWidth ? styles.fullWidth : null,
@@ -17,10 +18,10 @@ export const Button = memo(function Button({ title, onPress, variant = 'primary'
         variant === 'outline' ? styles.outline : null, variant === 'ghost' ? styles.ghost : null,
         pressed ? styles.pressed : null, disabled ? styles.disabled : null]}
       accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled: disabled || loading, busy: loading }}>
-      {loading ? <ActivityIndicator color={secondary ? colors.primary : colors.onPrimary} /> : (
+      {loading ? <ActivityIndicator color={contentColor} /> : (
         <View style={styles.content}>
           {icon ? <View>{icon}</View> : null}
-          <Text style={[styles.text, secondary ? styles.secondaryText : null]}>{title}</Text>
+          <Text style={[styles.text, secondary ? styles.secondaryText : null, variant === 'emphasis' ? styles.emphasisText : null]}>{title}</Text>
         </View>
       )}
     </Pressable>
@@ -38,4 +39,5 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.45 },
   text: { ...typography.button, color: colors.onPrimary, textAlign: 'center', flexShrink: 1 },
   secondaryText: { color: colors.primary },
+  emphasisText: { color: colors.onEmphasis },
 });

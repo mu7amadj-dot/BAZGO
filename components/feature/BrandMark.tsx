@@ -12,7 +12,7 @@ export const BrandMark = memo(function BrandMark({ compact = false, showSlogan =
         <View style={styles.pinWrap}>
           <View style={styles.pinTail} />
           <View style={styles.pinCircle}>
-            <MaterialCommunityIcons name="truck" size={32} color={colors.onEmphasis} />
+            <MaterialCommunityIcons name="truck" size={32} color={colors.onPrimary} />
           </View>
         </View>
       ) : null}

@@ -17,11 +17,11 @@ export const NegotiationPanel = memo(function NegotiationPanel({ state }: Negoti
       <Text style={styles.body}>الحجز مؤقت. اتفقا عبر النص أو الصوت؛ يُرسل السائق السعر المتفق عليه ويؤكده التاجر نهائياً.</Text>
       {n.proposed_price ? <View style={styles.proposal}><Text style={styles.label}>عرض السائق الحالي</Text><Text style={styles.price}>{formatIQD(n.proposed_price)}</Text></View> : null}
       {state.isMerchant ? <>
-        <Button title="تأكيد الاتفاق النهائي · Confirm Final Agreement" disabled={!n.proposed_price || state.busy} loading={state.busy} onPress={state.confirm} />
+        <Button title="تأكيد الاتفاق النهائي · Confirm Final Agreement" variant="emphasis" disabled={!n.proposed_price || state.busy} loading={state.busy} onPress={state.confirm} />
         {!n.proposed_price ? <Text style={styles.body}>بانتظار إرسال السائق للسعر المتفق عليه.</Text> : null}
       </> : <>
         <Field label="السعر المقترح للتأكيد (د.ع)" value={state.price} onChangeText={state.setPrice} keyboardType="numeric" />
-        <Button title="إرسال السعر إلى التاجر للتأكيد" loading={state.busy} onPress={state.propose} />
+        <Button title="إرسال السعر إلى التاجر للتأكيد" variant="emphasis" loading={state.busy} onPress={state.propose} />
       </>}
       <Button title="إلغاء التفاوض وتحرير الحجز" variant="ghost" disabled={state.busy} onPress={state.cancel} />
     </> : state.closed ? <Text style={styles.closed}>{n.status === 'cancelled' ? 'أُلغي التفاوض' : 'انتهت مهلة 15 دقيقة'} · أُلغي الحجز المؤقت وأصبحت الحمولة متاحة مجدداً. هذه المحادثة للقراءة فقط.</Text> : <>

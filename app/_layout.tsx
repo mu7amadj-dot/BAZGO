@@ -15,7 +15,7 @@ export default function RootLayout() {
         <AuthProvider>
         <BookingProvider>
         <AppProvider>
-          <StatusBar style="light" />
+          <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="auth" />
