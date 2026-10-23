@@ -21,6 +21,13 @@
 6. Limits: five sends/phone/hour, at least 60 seconds between sends; ten checks/phone/ten minutes, at least two seconds between checks; thirty sends and one hundred checks/IP/hour; global caps of 500 sends and 2000 checks/hour. These are server-side bounds, not promises of SMS delivery. Failed requests count toward limits.
 7. Responses use `Cache-Control: no-store`. Logs contain random request IDs and sanitized stage/provider error codes, never phone numbers, OTPs, full provider responses, tokens or keys. Do not log request bodies/session responses in external monitoring.
 
+## Troubleshooting configuration errors
+- The reported `configuration_missing` HTTP 503 is raised by the Edge Function's environment validation **before any Twilio request**. It does not by itself indicate carrier delivery, insufficient credit or Iraq Geo Permissions. The earlier generic message did not identify which setting failed.
+- Configuration values now have surrounding whitespace trimmed before validation. Account SID must still be `AC` plus 32 hexadecimal characters; Verify Service SID must be `VA` plus 32 hexadecimal characters. A Messaging Service SID or quoted SID is not accepted. No validation or OTP security check is bypassed.
+- Retry sending the code after deployment. Missing Twilio settings are identified by variable name in the response, and an invalid Account/Verify SID has specific correction instructions. Correct the named setting through Cloud → Secrets or the secure key-entry UI; never paste secrets into chat or client-side files.
+- Safe configuration logs contain only a request ID, variable names and `missing`/`invalid_format` reasons, not values. Missing built-in backend settings produce a separate server-authentication message; they do not ask users to submit preconfigured backend secrets.
+- This change cannot establish whether the currently configured values are valid without another invocation. Actual SMS delivery remains subject to real-phone testing.
+
 ## Existing accounts and limitations
 Existing email accounts and marketplace data are untouched. Their active sessions continue to work. Unverified contact numbers on old email accounts are **not** silently merged with phone accounts: doing so could give someone another user's account. A signed-in, explicit account-linking flow is required to migrate them safely. Once signed out, the current login screen uses phone OTP only.
 SMS delivery to an Iraqi handset has not been verified in this editor session. Account credit, geographic permissions, trial restrictions and local carrier delivery still require real-device testing.
@@ -28,7 +35,8 @@ Booking scheduler checks remain unchanged and fail closed. Phone authentication 
 Rate-limit/bootstrap records are server operational metadata and require an administrative retention policy for long-term scale; no existing data was deleted.
 
 ## Tests
-Pure validation: `deno test tests/phoneOtp.test.ts`.
+Pure validation: `deno test tests/phoneOtp.test.ts tests/phoneAuthConfig.test.ts`.
+Configuration tests cover surrounding whitespace, each missing/blank setting, invalid SID prefixes/lengths/quotes, and secret-free diagnostics.
 Read-only/invalid-input integration checks: set `TEST_BACKEND_URL`, `TEST_ANON_KEY`, then `deno test --allow-env --allow-net tests/phoneAuth.integration.test.ts`.
 These test files are supplied, not executed in this editor (no command runner is available).
 

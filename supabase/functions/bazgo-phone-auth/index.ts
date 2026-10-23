@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { normalizeIraqiPhone, sha256, validateOtp } from '../_shared/phoneOtp.ts';
+import { loadPhoneAuthConfig, phoneAuthConfigMessage } from '../_shared/phoneAuthConfig.ts';
 
 class PublicError extends Error {
   constructor(public status: number, public code: string, message: string, public retryAfter = 0) { super(message); }
@@ -25,16 +26,14 @@ Deno.serve(async (req: Request) => {
     if (body.action === 'verify') {
       try { code = validateOtp(body.code); } catch { throw new PublicError(400, 'invalid_code', 'أدخل رمز التحقق كما ورد في الرسالة.'); }
     }
-    // Twilio secrets are accessed ONLY here, inside this Edge Function.
-    const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID') ?? '';
-    const authToken = Deno.env.get('TWILIO_AUTH_TOKEN') ?? '';
-    const serviceSid = Deno.env.get('TWILIO_VERIFY_SERVICE_SID') ?? '';
-    const backendUrl = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-    if (!/^AC[0-9a-f]{32}$/i.test(accountSid) || !authToken || !/^VA[0-9a-f]{32}$/i.test(serviceSid) || !backendUrl || !serviceKey || !anonKey) {
-      throw new PublicError(503, 'configuration_missing', 'خدمة SMS غير مهيأة بالكامل. تواصل مع إدارة التطبيق.');
+    // Secrets remain server-side. Trim copied whitespace without weakening SID validation.
+    const configuration = loadPhoneAuthConfig((name) => Deno.env.get(name));
+    if (!configuration.ok) {
+      // Only variable names and validation reasons are logged; never values or configuration.
+      console.error('bazgo-phone-auth configuration failure', { requestId, issues: configuration.issues });
+      throw new PublicError(503, 'configuration_missing', phoneAuthConfigMessage(configuration.issues));
     }
+    const { accountSid, authToken, serviceSid, backendUrl, serviceKey, anonKey } = configuration.config;
     const admin = createClient(backendUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const phoneHash = await sha256(phone);
     // Gateway must overwrite forwarded IP headers; unknown clients share a conservative bucket.
