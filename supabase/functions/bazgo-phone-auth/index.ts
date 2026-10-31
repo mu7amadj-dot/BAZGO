@@ -2,6 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { normalizeIraqiPhone, sha256, validateOtp } from '../_shared/phoneOtp.ts';
 import { loadPhoneAuthConfig, phoneAuthConfigMessage } from '../_shared/phoneAuthConfig.ts';
+import { generateOtp, hashOtp, otpCodeLength, otpExpiresIn, otpResendAfter } from '../_shared/otpChallenge.ts';
+import { OtpiqError, sendOtpiqCode } from '../_shared/otpiq.ts';
 
 class PublicError extends Error {
   constructor(public status: number, public code: string, message: string, public retryAfter = 0) { super(message); }
@@ -26,14 +28,14 @@ Deno.serve(async (req: Request) => {
     if (body.action === 'verify') {
       try { code = validateOtp(body.code); } catch { throw new PublicError(400, 'invalid_code', 'أدخل رمز التحقق كما ورد في الرسالة.'); }
     }
-    // Secrets remain server-side. Trim copied whitespace without weakening SID validation.
+    // Provider and admin credentials are read only inside this Edge Function.
     const configuration = loadPhoneAuthConfig((name) => Deno.env.get(name));
     if (!configuration.ok) {
       // Only variable names and validation reasons are logged; never values or configuration.
       console.error('bazgo-phone-auth configuration failure', { requestId, issues: configuration.issues });
       throw new PublicError(503, 'configuration_missing', phoneAuthConfigMessage(configuration.issues));
     }
-    const { accountSid, authToken, serviceSid, backendUrl, serviceKey, anonKey } = configuration.config;
+    const { otpiqApiKey, backendUrl, serviceKey, anonKey } = configuration.config;
     const admin = createClient(backendUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
     const phoneHash = await sha256(phone);
     // Gateway must overwrite forwarded IP headers; unknown clients share a conservative bucket.
@@ -49,45 +51,50 @@ Deno.serve(async (req: Request) => {
       if (limit.error) throw new Error('rate_limit_database_failed');
       if (Number(limit.data) > 0) throw new PublicError(429, 'rate_limited', 'طلبات كثيرة. انتظر قبل المحاولة مجدداً.', Number(limit.data));
     }
-    const twilio = async (endpoint: string, values?: Record<string, string>) => {
-      const response = await fetch(`https://verify.twilio.com/v2/Services/${serviceSid}${endpoint}`, {
-        method: values ? 'POST' : 'GET',
-        headers: { Authorization: `Basic ${btoa(`${accountSid}:${authToken}`)}`, ...(values ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
-        body: values ? Object.entries(values).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&') : undefined,
-        signal: AbortSignal.timeout(15000),
-      });
-      const details = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        // Never return provider messages: they may include phone numbers, identifiers or credentials.
-        console.error('bazgo-phone-auth provider failure', { requestId, status: response.status, code: details.code });
-        if (response.status === 429 || details.code === 60203 || details.code === 60202) throw new PublicError(429, 'provider_rate_limit', 'تم تجاوز عدد المحاولات. أعد إرسال الرمز لاحقاً.', 60);
-        if (!send && response.status === 404) throw new PublicError(400, 'code_expired', 'انتهت صلاحية الرمز أو استُخدم سابقاً. أرسل رمزاً جديداً.');
-        if (response.status === 401 || response.status === 403 || details.code === 21408 || details.code === 21608) throw new PublicError(503, 'sms_unavailable', 'تعذر إرسال SMS. على الإدارة التحقق من إعداد Twilio والسماح بالإرسال إلى العراق.');
-        throw new PublicError(502, 'provider_failed', send ? 'تعذر إرسال رمز SMS. حاول لاحقاً.' : 'تعذر التحقق من الرمز. حاول لاحقاً.');
-      }
-      return details;
-    };
-    if (send) {
-      const service = await twilio('');
-      const codeLength = Number(service.code_length);
-      if (!Number.isInteger(codeLength) || codeLength < 4 || codeLength > 10) throw new Error('invalid_provider_code_length');
-      const sent = await twilio('/Verifications', { To: phone, Channel: 'sms' });
-      if (sent.status !== 'pending' || sent.to !== phone) throw new Error('sms_not_pending');
-      return reply(200, { sent: true, phone, codeLength, retryAfter: 60, expiresIn: 600 });
-    }
+    // Serialize sends and verification/provisioning for a phone across server instances.
     const leaseId = crypto.randomUUID();
     const claim = await admin.rpc('bazgo_claim_phone_session', { p_phone_hash: phoneHash, p_lease: leaseId });
     if (claim.error || !claim.data?.email) {
-      if (claim.data?.busy) throw new PublicError(409, 'verification_in_progress', 'التحقق جارٍ لهذا الرقم. انتظر ثم حاول مجدداً.', 3);
+      if (claim.data?.busy) throw new PublicError(409, 'verification_in_progress', 'يوجد طلب جارٍ لهذا الرقم. انتظر ثم حاول مجدداً.', 3);
       throw new Error('phone_claim_failed');
     }
     release = async () => {
       const result = await admin.rpc('bazgo_release_phone_session', { p_phone_hash: phoneHash, p_lease: leaseId });
       if (result.error) console.error('bazgo-phone-auth lease release failed', { requestId });
     };
-    // No user creation, linking or session issuance occurs before Twilio approves this code.
-    const approved = await twilio('/VerificationCheck', { To: phone, Code: code });
-    if (approved.status !== 'approved' || approved.to !== phone || approved.valid !== true) throw new PublicError(400, 'incorrect_code', 'رمز التحقق غير صحيح.');
+    if (send) {
+      const challengeId = crypto.randomUUID();
+      const otp = generateOtp();
+      const digest = await hashOtp(serviceKey, phoneHash, challengeId, otp);
+      // Replace the previous challenge before delivery. Pending codes cannot be used to log in.
+      const started = await admin.rpc('bazgo_begin_otp_challenge', { p_phone_hash: phoneHash, p_challenge: challengeId, p_code_hash: digest });
+      if (started.error) throw new Error('otp_challenge_create_failed');
+      let activated = false;
+      try {
+        await sendOtpiqCode(otpiqApiKey, phone, otp);
+        const finished = await admin.rpc('bazgo_finish_otp_send', { p_phone_hash: phoneHash, p_challenge: challengeId, p_accepted: true });
+        if (finished.error || finished.data !== true) throw new Error('otp_challenge_activate_failed');
+        activated = true;
+        return reply(200, { sent: true, phone, codeLength: otpCodeLength, retryAfter: otpResendAfter, expiresIn: otpExpiresIn });
+      } finally {
+        if (!activated) {
+          // An error/timeout must not activate a code, even if delivery eventually happens.
+          const failed = await admin.rpc('bazgo_finish_otp_send', { p_phone_hash: phoneHash, p_challenge: challengeId, p_accepted: false });
+          if (failed.error) console.error('bazgo-phone-auth send finalization failed', { requestId });
+        }
+      }
+    }
+    const challenge = await admin.from('bazgo_otp_challenges').select('challenge_id').eq('phone_hash', phoneHash).maybeSingle();
+    if (challenge.error) throw new Error('otp_challenge_lookup_failed');
+    if (!challenge.data) throw new PublicError(400, 'code_expired', 'لا يوجد رمز صالح لهذا الرقم. أرسل رمزاً جديداً.');
+    const digest = await hashOtp(serviceKey, phoneHash, challenge.data.challenge_id, code);
+    // Row locking atomically checks expiry/attempts and consumes the code before any Auth operation.
+    const approved = await admin.rpc('bazgo_consume_otp_challenge', { p_phone_hash: phoneHash, p_challenge: challenge.data.challenge_id, p_code_hash: digest });
+    if (approved.error) throw new Error('otp_challenge_check_failed');
+    if (approved.data === 'locked') throw new PublicError(429, 'code_locked', 'تم تجاوز محاولات هذا الرمز. انتظر ثم أرسل رمزاً جديداً.', 60);
+    if (approved.data === 'expired') throw new PublicError(400, 'code_expired', 'انتهت صلاحية الرمز أو استُخدم أو استُبدل. أرسل رمزاً جديداً.');
+    if (approved.data === 'incorrect') throw new PublicError(400, 'incorrect_code', 'رمز التحقق غير صحيح.');
+    if (approved.data !== 'approved') throw new Error('invalid_otp_check_result');
     const identity = await admin.from('bazgo_phone_identities').select('user_id').eq('phone', phone).maybeSingle();
     if (identity.error) throw new Error('identity_lookup_failed');
     let userId = identity.data?.user_id as string | undefined;
@@ -117,6 +124,10 @@ Deno.serve(async (req: Request) => {
     console.log('bazgo-phone-auth verification completed', { requestId });
     return reply(200, { session: { access_token: sessionResult.data.session.access_token, refresh_token: sessionResult.data.session.refresh_token } });
   } catch (issue) {
+    if (issue instanceof OtpiqError) {
+      console.error('bazgo-phone-auth OTPIQ failure', { requestId, status: issue.providerStatus, code: issue.code });
+      return reply(issue.status, { error: issue.message, code: issue.code, retryAfter: issue.retryAfter, requestId });
+    }
     if (issue instanceof PublicError) return reply(issue.status, { error: issue.message, code: issue.code, retryAfter: issue.retryAfter, requestId });
     console.error('bazgo-phone-auth failed', { requestId, stage: issue instanceof Error && /^[a-z_]+$/.test(issue.message) ? issue.message : 'unexpected_failure' });
     return reply(500, { error: 'تعذر إكمال التحقق. حاول إرسال رمز جديد أو تواصل مع إدارة التطبيق.', code: 'authentication_failed', requestId });

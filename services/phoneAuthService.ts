@@ -29,7 +29,7 @@ async function invokePhoneAuth<T>(body: Record<string, string>): Promise<T> {
 export async function sendPhoneCode(phone: string): Promise<SmsCodeResult> {
   const normalized = validPhone(phone);
   const result = await invokePhoneAuth<SmsCodeResult>({ action: 'send', phone: normalized });
-  if (result.sent !== true || result.phone !== normalized || !Number.isInteger(result.codeLength) || result.codeLength < 4 || result.codeLength > 10
+  if (result.sent !== true || result.phone !== normalized || result.codeLength !== 6
     || !Number.isFinite(result.retryAfter) || result.retryAfter < 0 || result.retryAfter > 3600
     || !Number.isFinite(result.expiresIn) || result.expiresIn <= 0 || result.expiresIn > 3600) {
     throw new PhoneAuthError('استجابة خدمة SMS غير صالحة. حاول مجدداً.');
@@ -38,7 +38,7 @@ export async function sendPhoneCode(phone: string): Promise<SmsCodeResult> {
 }
 export async function verifyPhoneCode(phone: string, code: string): Promise<void> {
   const token = normalizeDigits(code).replace(/\s/g, '');
-  if (!/^\d{4,10}$/.test(token)) throw new PhoneAuthError('أدخل رمز التحقق المرسل إلى رقمك.');
+  if (!/^\d{6}$/.test(token)) throw new PhoneAuthError('أدخل رمز التحقق المكوّن من 6 أرقام المرسل إلى رقمك.');
   const result = await invokePhoneAuth<{ session?: { access_token: string; refresh_token: string } }>({ action: 'verify', phone: validPhone(phone), code: token });
   if (typeof result.session?.access_token !== 'string' || !result.session.access_token || typeof result.session.refresh_token !== 'string' || !result.session.refresh_token) throw new PhoneAuthError('لم يتم إنشاء جلسة تسجيل الدخول.');
   // Reuse the existing client. AuthProvider is updated by its onAuthStateChange listener.

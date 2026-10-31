@@ -48,14 +48,17 @@ export function useSecureLogin() {
   const handleError = useCallback((issue: unknown) => {
     setError(issue instanceof Error ? issue.message : 'تعذر إكمال العملية.');
     if (issue instanceof PhoneAuthError && issue.retryAfter > 0) setResendAt((current) => Math.max(current, Date.now() + issue.retryAfter * 1000));
+    if (issue instanceof PhoneAuthError && ['code_expired', 'code_locked'].includes(issue.code)) {
+      setExpiresAt(0); setOtpValue('');
+    }
   }, []);
   const sendCode = useCallback(async () => {
     const result = await sendPhoneCode(phone);
-    if (!result.sent || !Number.isInteger(result.codeLength) || result.codeLength < 4 || result.codeLength > 10) throw new Error('استجابة خدمة SMS غير صالحة.');
+    if (!result.sent || result.codeLength !== 6) throw new Error('استجابة خدمة SMS غير صالحة.');
     setSentPhone(result.phone); setCodeLength(result.codeLength); setCodeSent(true); setOtpValue('');
     setResendAt(Date.now() + Math.max(60, result.retryAfter) * 1000);
     setExpiresAt(Date.now() + result.expiresIn * 1000);
-    setNotice('تم إرسال رمز التحقق عبر SMS إلى رقم هاتفك.');
+    setNotice('تم طلب إرسال رمز التحقق عبر SMS. قد يستغرق وصوله لحظات.');
   }, [phone]);
   const submit = useCallback(async () => {
     if (pending.current || operationLoading || auth.loading || booking.loading || identity.loading) return;

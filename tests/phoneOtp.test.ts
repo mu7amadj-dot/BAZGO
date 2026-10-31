@@ -10,10 +10,10 @@ Deno.test('Iraqi phone input normalizes local, international and Arabic digits',
 Deno.test('Invalid, non-Iraqi and oversized phone input is rejected', () => {
   for (const phone of ['', '+15551234567', '0770123', 'abc07701234567', null, '0'.repeat(100)]) assertThrows(() => normalizeIraqiPhone(phone));
 });
-Deno.test('OTP validation permits provider configured length, not arbitrary values', () => {
+Deno.test('OTP validation permits exactly six digits including leading zeros', () => {
   assertEquals(validateOtp('123456'), '123456');
-  assertEquals(validateOtp('1234'), '1234');
-  for (const code of ['', '123', '12345678901', '12x456', 123456, null]) assertThrows(() => validateOtp(code));
+  assertEquals(validateOtp('000001'), '000001');
+  for (const code of ['', '123', '1234', '1234567', '12345678901', '12x456', 123456, null]) assertThrows(() => validateOtp(code));
 });
 Deno.test('Rate-limit and provisioning keys are fixed hashes', async () => {
   const hash = await sha256('+9647701234567');

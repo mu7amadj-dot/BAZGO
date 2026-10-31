@@ -6,30 +6,31 @@ import type { PhoneAuthVariable } from '../supabase/functions/_shared/phoneAuthC
 
 function makeEnv(): Record<PhoneAuthVariable, string> {
   return {
-    TWILIO_ACCOUNT_SID: `AC${'1'.repeat(32)}`,
-    TWILIO_AUTH_TOKEN: 'synthetic-server-only-token',
-    TWILIO_VERIFY_SERVICE_SID: `VA${'2'.repeat(32)}`,
+    OTPIQ_API_KEY: 'synthetic-server-only-otpiq-key',
     SUPABASE_URL: 'https://example.invalid',
     SUPABASE_SERVICE_ROLE_KEY: 'synthetic-server-only-service-key',
     SUPABASE_ANON_KEY: 'synthetic-anon-key',
   };
 }
-
+Deno.test('Only OTPIQ and built-in backend settings are read', () => {
+  const env = makeEnv();
+  const names: PhoneAuthVariable[] = [];
+  const result = loadPhoneAuthConfig((name) => { names.push(name); return env[name]; });
+  assertEquals(result.ok, true);
+  assertEquals(names, Object.keys(env));
+});
 Deno.test('Copied surrounding whitespace is normalized before configuration checks', () => {
   const env = makeEnv();
   const result = loadPhoneAuthConfig((name) => ` \n${env[name]}\t `);
   assertEquals(result.ok, true);
   if (result.ok) {
-    assertEquals(result.config.accountSid, env.TWILIO_ACCOUNT_SID);
-    assertEquals(result.config.authToken, env.TWILIO_AUTH_TOKEN);
-    assertEquals(result.config.serviceSid, env.TWILIO_VERIFY_SERVICE_SID);
+    assertEquals(result.config.otpiqApiKey, env.OTPIQ_API_KEY);
     assertEquals(result.config.backendUrl, env.SUPABASE_URL);
     assertEquals(result.config.serviceKey, env.SUPABASE_SERVICE_ROLE_KEY);
     assertEquals(result.config.anonKey, env.SUPABASE_ANON_KEY);
   }
 });
-
-Deno.test('Every absent or blank variable is identified without returning secret values', () => {
+Deno.test('Every absent or blank setting is identified without returning secret values', () => {
   const env = makeEnv();
   for (const missing of Object.keys(env) as PhoneAuthVariable[]) {
     for (const empty of [undefined, '', ' \n\t ']) {
@@ -37,37 +38,29 @@ Deno.test('Every absent or blank variable is identified without returning secret
       assertEquals(result.ok, false);
       if (!result.ok) assertEquals(result.issues, [{ variable: missing, reason: 'missing' }]);
       assertEquals('config' in result, false);
-      assertEquals(JSON.stringify(result).includes(env.TWILIO_AUTH_TOKEN), false);
+      assertEquals(JSON.stringify(result).includes(env.OTPIQ_API_KEY), false);
       assertEquals(JSON.stringify(result).includes(env.SUPABASE_SERVICE_ROLE_KEY), false);
     }
   }
 });
-
-Deno.test('Wrong SID prefixes, lengths and quoted SID values remain rejected', () => {
-  for (const variable of ['TWILIO_ACCOUNT_SID', 'TWILIO_VERIFY_SERVICE_SID'] as const) {
-    const env = makeEnv();
-    for (const invalid of ['VS' + '1'.repeat(32), 'AC123', `"${env[variable]}"`]) {
-      const result = loadPhoneAuthConfig((name) => name === variable ? invalid : env[name]);
-      assertEquals(result.ok, false);
-      if (!result.ok) {
-        assertEquals(result.issues, [{ variable, reason: 'invalid_format' }]);
-        const message = phoneAuthConfigMessage(result.issues);
-        assertEquals(message.includes(variable), true);
-        assertEquals(message.includes(invalid), false);
-        assertEquals(message.includes(env.TWILIO_AUTH_TOKEN), false);
-      }
+Deno.test('Quoted keys and accidentally copied Bearer headers are rejected without disclosure', () => {
+  const env = makeEnv();
+  for (const invalid of [`"${env.OTPIQ_API_KEY}"`, `Bearer ${env.OTPIQ_API_KEY}`, "'synthetic-key'", 'synthetic\nkey']) {
+    const result = loadPhoneAuthConfig((name) => name === 'OTPIQ_API_KEY' ? invalid : env[name]);
+    assertEquals(result.ok, false);
+    if (!result.ok) {
+      assertEquals(result.issues, [{ variable: 'OTPIQ_API_KEY', reason: 'invalid_format' }]);
+      const message = phoneAuthConfigMessage(result.issues);
+      assertEquals(message.includes('OTPIQ_API_KEY'), true);
+      assertEquals(message.includes(invalid), false);
+      assertEquals(message.includes(env.OTPIQ_API_KEY), false);
     }
   }
 });
-
-Deno.test('Missing Twilio settings name all affected variables; backend failures stay separate', () => {
-  const message = phoneAuthConfigMessage([
-    { variable: 'TWILIO_ACCOUNT_SID', reason: 'missing' },
-    { variable: 'TWILIO_VERIFY_SERVICE_SID', reason: 'missing' },
-  ]);
-  assertEquals(message.includes('TWILIO_ACCOUNT_SID'), true);
-  assertEquals(message.includes('TWILIO_VERIFY_SERVICE_SID'), true);
+Deno.test('Provider configuration errors stay separate from backend configuration errors', () => {
+  const missing = phoneAuthConfigMessage([{ variable: 'OTPIQ_API_KEY', reason: 'missing' }]);
+  assertEquals(missing.includes('OTPIQ_API_KEY'), true);
   const backend = phoneAuthConfigMessage([{ variable: 'SUPABASE_SERVICE_ROLE_KEY', reason: 'missing' }]);
-  assertEquals(backend.includes('TWILIO_'), false);
+  assertEquals(backend.includes('OTPIQ_API_KEY'), false);
   assertEquals(backend.includes('إعدادات المصادقة'), true);
 });

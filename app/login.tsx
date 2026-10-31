@@ -56,7 +56,7 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>أدخل رقمك العراقي لاستلام رمز تحقق عبر SMS، دون بريد إلكتروني أو كلمة مرور. للحساب الجديد تختار تاجر أو سائق بعد التحقق.</Text>
           <Field compact icon="phone-outline" label="رقم الهاتف العراقي" value={login.phone} onChangeText={login.setPhone} placeholder="07XXXXXXXXX" keyboardType="phone-pad" textContentType="telephoneNumber" maxLength={24} editable={!login.operationLoading && !login.codeSent} />
           {login.codeSent ? <>
-            <Text style={styles.subtitle}>أرسلنا الرمز إلى {login.sentPhone}. لا تشارك رمز التحقق مع أي شخص.</Text>
+            <Text style={styles.subtitle}>تم طلب إرسال الرمز إلى {login.sentPhone}. لا تشارك رمز التحقق مع أي شخص.</Text>
             <Field compact icon="shield-key-outline" label={`رمز التحقق (${login.codeLength} أرقام)`} value={login.otp} onChangeText={login.setOtp} keyboardType="numeric" textContentType="oneTimeCode" maxLength={login.codeLength} editable={!login.operationLoading} />
             <Text accessibilityLiveRegion="polite" style={styles.caption}>{login.expiresIn > 0 ? `صلاحية الرمز: ${Math.floor(login.expiresIn / 60)}:${String(login.expiresIn % 60).padStart(2, '0')}` : 'انتهت صلاحية الرمز. أرسل رمزاً جديداً.'}</Text>
             <Button variant="ghost" title={login.seconds ? `إعادة الإرسال خلال ${login.seconds} ثانية` : 'إعادة إرسال الرمز'} onPress={login.resend} disabled={login.seconds > 0 || login.operationLoading} />

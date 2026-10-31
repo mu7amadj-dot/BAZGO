@@ -10,7 +10,7 @@ export function normalizeIraqiPhone(value: unknown): string {
   return phone;
 }
 export function validateOtp(value: unknown): string {
-  if (typeof value !== 'string' || !/^\d{4,10}$/.test(value)) throw new Error('invalid_code');
+  if (typeof value !== 'string' || !/^\d{6}$/.test(value)) throw new Error('invalid_code');
   return value;
 }
 export async function sha256(value: string): Promise<string> {
