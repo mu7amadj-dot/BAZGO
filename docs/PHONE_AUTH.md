@@ -1,13 +1,23 @@
 # BAZGO — OTPIQ phone OTP authentication
 
 ## Architecture and credential boundary
-- One existing login/registration screen: Iraqi phone → OTPIQ SMS → server-side OTP verification → ordinary OnSpace Cloud session → existing AuthProvider → account role/details.
+- One existing login/registration screen. New accounts: select merchant/driver → complete role-specific details → OTPIQ SMS → server-side OTP verification → ordinary OnSpace Cloud session → review and save the real marketplace account. Existing accounts: select “لديّ حساب” → phone OTP → restore the saved account and immutable role from the server.
 - The frontend calls `bazgo-phone-auth` with phone/code only through the unique existing Supabase client. No OTPIQ endpoint, API credential or administrative key is imported into app code. No new frontend auth client or provider was created.
 - `OTPIQ_API_KEY` and preconfigured backend credentials are read exclusively from `Deno.env` inside Edge Functions. No secret values were read, copied to source or put in `EXPO_PUBLIC_` variables. Unit tests use synthetic values only.
 - Only `https://api.otpiq.com/api/sms` receives the provider key, as a Bearer header over HTTPS. Redirects are rejected. Payload: `phoneNumber` without the leading plus, `smsType: verification`, the server-generated `verificationCode`, `provider: sms`. Sender ID is optional for SMS and is not required by this implementation. No WhatsApp routing or fallback was enabled silently.
 - The previous delivery integration, endpoints and key requirements have been removed. Old secrets may still exist in Cloud; remove them in Cloud → Secrets and revoke them in the old provider dashboard if they are no longer used elsewhere. The app does not read them.
 - Public onboarding intentionally uses `verify_jwt=false`; inputs, rate limits and verified single-use OTP are independently enforced before any Auth user or session is issued.
 - Provider task acceptance is not confirmation of handset delivery. The UI states that sending was requested. Actual SMS delivery must be tested with consenting Iraqi phones.
+
+## Merchant and driver registration screen
+- The default screen now starts with merchant/driver selection before any personal input. Both account types remain on `/login`; no separate registration route or demo login was added.
+- Merchant details: full name, Iraqi mobile, company/factory name, city/area and province dropdown.
+- Driver details: name, Iraqi mobile, father/grandfather names, province, vehicle dropdown, maximum capacity in tons, and optional driver/license/truck photos from camera or gallery.
+- All required fields are validated before the first paid SMS request. Photo selection before verification is an in-memory draft only; uploads and marketplace account writes occur after real phone verification.
+- The registration draft, selected role and photo URIs survive the anonymous-to-authenticated OTP transition. Editing before verification returns to the same draft. Logout or replacement of an already authenticated user clears it. Closing the app before saving is not supported as draft persistence.
+- After OTP, the user reviews the prefilled details and presses “حفظ الحساب الحقيقي والمتابعة”. Saving requires the server-reported verified number and uses the existing account RPC and private profile storage. No unverified contact-number fallback or local account activation is allowed.
+- Existing verified phone accounts bypass new-account setup and restore their saved role/details; a registration selection never overwrites an existing account's role. Successful account restoration/saving returns through the existing root routing.
+- Added static UI-contract checks in `tests/registrationUi.test.ts` and device scenarios in `tests/REGISTRATION_TEST_PLAN.md`; these have not been executed in this editor. Read-only SQL checks verified authenticated account-setup permission, anonymous denial, role immutability, the verified-number trigger, private profile storage and client OTP-table read denial.
 
 ## Server OTP lifecycle
 1. Validate a normalized Iraqi mobile number and enforce phone/IP/global rate limits.

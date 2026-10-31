@@ -4,7 +4,7 @@ import { useBooking } from './useBooking';
 import { useVerifiedPhone } from './useVerifiedPhone';
 import { PROVINCES, VEHICLES } from '@/constants/config';
 import type { UserRole } from '@/services/types';
-import { emptyRegistrationForm, normalizeDigits, type RegistrationForm } from '@/services/registrationService';
+import { emptyRegistrationForm, normalizeDigits, prepareRegistration, type RegistrationForm } from '@/services/registrationService';
 import { prepareServerProfile } from '@/services/accountProfileService';
 import { PhoneAuthError, sendPhoneCode, verifyPhoneCode } from '@/services/phoneAuthService';
 
@@ -12,12 +12,12 @@ export function useSecureLogin() {
   const auth = useAuth();
   const booking = useBooking();
   const identity = useVerifiedPhone();
-  const [phone, setPhone] = useState('');
+  const [mode, setModeValue] = useState<'register' | 'login'>('register');
   const [sentPhone, setSentPhone] = useState('');
   const [otp, setOtpValue] = useState('');
   const [codeLength, setCodeLength] = useState(6);
   const [codeSent, setCodeSent] = useState(false);
-  const [role, setRole] = useState<UserRole | null>(null);
+  const [role, setRoleValue] = useState<UserRole | null>(null);
   const [form, setForm] = useState<RegistrationForm>({ ...emptyRegistrationForm });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -27,13 +27,37 @@ export function useSecureLogin() {
   const [seconds, setSeconds] = useState(0);
   const [expiresIn, setExpiresIn] = useState(0);
   const pending = useRef(false);
+  const previousUserId = useRef<string | null>(auth.user?.id ?? null);
   const operationLoading = auth.operationLoading || busy;
   const provinceItems = useMemo(() => PROVINCES.map((name) => ({ id: name, label: name, icon: 'map-marker-outline' })), []);
   const vehicleItems = useMemo(() => VEHICLES.map((vehicle) => ({ id: vehicle.id, label: vehicle.label, icon: vehicle.icon, meta: `حتى ${vehicle.capacity} طن` })), []);
-  const setField = useCallback((field: keyof RegistrationForm, value: string) => setForm((current) => ({ ...current, [field]: value })), []);
+  const setField = useCallback((field: keyof RegistrationForm, value: string) => {
+    if (pending.current || operationLoading || codeSent || (field === 'phone' && identity.phone)) return;
+    setForm((current) => ({ ...current, [field]: value }));
+  }, [operationLoading, codeSent, identity.phone]);
+  const setPhone = useCallback((value: string) => setField('phone', value), [setField]);
+  const setRole = useCallback((value: UserRole) => {
+    if (pending.current || operationLoading || codeSent) return;
+    setRoleValue(value); setError(''); setNotice('');
+  }, [operationLoading, codeSent]);
+  const setMode = useCallback((value: 'register' | 'login') => {
+    if (pending.current || operationLoading || codeSent || auth.user) return;
+    setModeValue(value); setError(''); setNotice('');
+  }, [operationLoading, codeSent, auth.user]);
   const setOtp = useCallback((value: string) => setOtpValue(normalizeDigits(value).replace(/\D/g, '').slice(0, codeLength)), [codeLength]);
+
   useEffect(() => {
-    setRole(null); setForm({ ...emptyRegistrationForm }); setError(''); setNotice('');
+    const nextUserId = auth.user?.id ?? null;
+    // Keep the anonymous registration draft through OTP sign-in. Clear it only
+    // when a signed-in user logs out or is replaced, never on null -> verified user.
+    if (previousUserId.current && previousUserId.current !== nextUserId) {
+      setRoleValue(null); setForm({ ...emptyRegistrationForm }); setModeValue('register');
+      setError(''); setNotice('');
+    }
+    if (nextUserId || previousUserId.current) {
+      setCodeSent(false); setOtpValue(''); setSentPhone(''); setExpiresAt(0);
+    }
+    previousUserId.current = nextUserId;
   }, [auth.user?.id]);
   useEffect(() => {
     if (identity.phone) setForm((current) => ({ ...current, phone: identity.phone }));
@@ -53,23 +77,32 @@ export function useSecureLogin() {
     }
   }, []);
   const sendCode = useCallback(async () => {
-    const result = await sendPhoneCode(phone);
+    const result = await sendPhoneCode(form.phone);
     if (!result.sent || result.codeLength !== 6) throw new Error('استجابة خدمة SMS غير صالحة.');
+    setForm((current) => ({ ...current, phone: result.phone }));
     setSentPhone(result.phone); setCodeLength(result.codeLength); setCodeSent(true); setOtpValue('');
     setResendAt(Date.now() + Math.max(60, result.retryAfter) * 1000);
     setExpiresAt(Date.now() + result.expiresIn * 1000);
     setNotice('تم طلب إرسال رمز التحقق عبر SMS. قد يستغرق وصوله لحظات.');
-  }, [phone]);
+  }, [form.phone]);
   const submit = useCallback(async () => {
     if (pending.current || operationLoading || auth.loading || booking.loading || identity.loading) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
     try {
       if (auth.user) {
         if (booking.syncError || identity.error) throw new Error('أعد تحميل الحساب قبل المتابعة.');
+        if (booking.account) return; // Existing roles are restored from the server, not overwritten by the form.
+        if (!identity.phone) throw new Error('يجب التحقق من رقم الهاتف عبر SMS قبل إنشاء الحساب. سجّل الخروج ثم تحقق من رقمك.');
         if (!role) throw new Error('اختر نوع الحساب أولاً.');
-        const account = await prepareServerProfile(role, { ...form, phone: identity.phone || form.phone }, auth.user.id);
+        const account = await prepareServerProfile(role, { ...form, phone: identity.phone }, auth.user.id);
         await booking.setupAccount(role, account.name, account.profile);
       } else if (!codeSent) {
+        if (mode === 'register') {
+          if (!role) throw new Error('اختر التسجيل كتاجر أو كسائق أولاً.');
+          // Validate every role-specific field before sending a paid SMS. No images
+          // are uploaded and no marketplace account is saved before verification.
+          prepareRegistration(role, form);
+        }
         if (Date.now() < resendAt) throw new PhoneAuthError('انتظر قبل طلب رمز آخر.', Math.ceil((resendAt - Date.now()) / 1000));
         await sendCode();
       } else {
@@ -80,29 +113,34 @@ export function useSecureLogin() {
       }
     } catch (issue) { handleError(issue); }
     finally { pending.current = false; setBusy(false); }
-  }, [operationLoading, auth, booking.loading, booking.syncError, booking.setupAccount, identity, role, form, codeSent, resendAt, expiresAt, codeLength, otp, sentPhone, sendCode, handleError]);
+  }, [operationLoading, auth, booking.loading, booking.syncError, booking.account, booking.setupAccount, identity, mode, role, form, codeSent, resendAt, expiresAt, codeLength, otp, sentPhone, sendCode, handleError]);
   const resend = useCallback(async () => {
-    if (Date.now() < resendAt || pending.current || operationLoading) return;
+    if (!codeSent || auth.user || Date.now() < resendAt || pending.current || operationLoading) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
     try { await sendCode(); } catch (issue) { handleError(issue); }
     finally { pending.current = false; setBusy(false); }
-  }, [resendAt, operationLoading, sendCode, handleError]);
+  }, [codeSent, auth.user, resendAt, operationLoading, sendCode, handleError]);
   const changePhone = useCallback(() => {
     if (operationLoading || pending.current) return;
+    // Return to the same draft so correcting details does not discard attachments.
     setCodeSent(false); setSentPhone(''); setOtpValue(''); setExpiresAt(0); setError(''); setNotice('');
   }, [operationLoading]);
   const reload = useCallback(async () => { identity.retry(); await booking.reload(); }, [identity.retry, booking.reload]);
   const logout = useCallback(async () => {
     if (operationLoading || pending.current) return;
-    setBusy(true);
+    pending.current = true; setBusy(true); setError('');
     try {
       const result = await auth.logout();
       if (result.error) setError(result.error);
-      else { setPhone(''); setForm({ ...emptyRegistrationForm }); setRole(null); setCodeSent(false); setOtpValue(''); setError(''); }
-    } finally { setBusy(false); }
-  }, [auth.logout, operationLoading]);
+      else {
+        setForm({ ...emptyRegistrationForm }); setRoleValue(null); setModeValue('register');
+        setCodeSent(false); setOtpValue(''); setSentPhone(''); setExpiresAt(0); setNotice('');
+      }
+    } catch (issue) { handleError(issue); }
+    finally { pending.current = false; setBusy(false); }
+  }, [auth.logout, operationLoading, handleError]);
   return { ...booking, reload, syncError: booking.syncError || identity.error, user: auth.user,
-    loading: auth.loading || booking.loading || identity.loading, operationLoading, phone, setPhone,
+    loading: auth.loading || booking.loading || identity.loading, operationLoading, mode, setMode, phone: form.phone, setPhone,
     verifiedPhone: identity.phone, sentPhone, otp, setOtp, codeLength, codeSent, expiresIn,
     role, setRole, form, setField, provinceItems, vehicleItems, error, notice, seconds, submit, resend, changePhone, logout };
 }
