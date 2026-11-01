@@ -9,7 +9,7 @@ export interface PhoneAuthConfig {
 export interface PhoneAuthConfigIssue { variable: PhoneAuthVariable; reason: 'missing' | 'invalid_format'; }
 export type PhoneAuthConfigResult = { ok: true; config: PhoneAuthConfig } | { ok: false; issues: PhoneAuthConfigIssue[] };
 
-export function loadPhoneAuthConfig(readEnv: (name: PhoneAuthVariable) => string | undefined): PhoneAuthConfigResult {
+export function loadPhoneAuthConfig(readEnv: (name: PhoneAuthVariable) => string | undefined, options: { requireProvider?: boolean } = {}): PhoneAuthConfigResult {
   const fields: { variable: PhoneAuthVariable; field: keyof PhoneAuthConfig; pattern?: RegExp }[] = [
     { variable: 'OTPIQ_API_KEY', field: 'otpiqApiKey', pattern: /^[^\s"']+$/ },
     { variable: 'SUPABASE_URL', field: 'backendUrl' },
@@ -19,6 +19,8 @@ export function loadPhoneAuthConfig(readEnv: (name: PhoneAuthVariable) => string
   const config: PhoneAuthConfig = { otpiqApiKey: '', backendUrl: '', serviceKey: '', anonKey: '' };
   const issues: PhoneAuthConfigIssue[] = [];
   for (const { variable, field, pattern } of fields) {
+    // Password login must continue working independently of the SMS provider.
+    if (variable === 'OTPIQ_API_KEY' && options.requireProvider === false) continue;
     const value = (readEnv(variable) ?? '').trim();
     config[field] = value;
     if (!value) issues.push({ variable, reason: 'missing' });

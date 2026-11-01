@@ -57,6 +57,15 @@ Deno.test('Quoted keys and accidentally copied Bearer headers are rejected witho
     }
   }
 });
+Deno.test('Password login does not read or require SMS provider credentials', () => {
+  const env = makeEnv();
+  const names: PhoneAuthVariable[] = [];
+  const result = loadPhoneAuthConfig((name) => { names.push(name); return name === 'OTPIQ_API_KEY' ? undefined : env[name]; }, { requireProvider: false });
+  assertEquals(result.ok, true);
+  assertEquals(names.includes('OTPIQ_API_KEY'), false);
+  const missingBackend = loadPhoneAuthConfig(() => undefined, { requireProvider: false });
+  assertEquals(missingBackend.ok, false);
+});
 Deno.test('Provider configuration errors stay separate from backend configuration errors', () => {
   const missing = phoneAuthConfigMessage([{ variable: 'OTPIQ_API_KEY', reason: 'missing' }]);
   assertEquals(missing.includes('OTPIQ_API_KEY'), true);

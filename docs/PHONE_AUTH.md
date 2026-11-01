@@ -1,81 +1,72 @@
-# BAZGO — OTPIQ phone OTP authentication
+# BAZGO — phone/password login and OTPIQ verification
 
-## Architecture and credential boundary
-- One existing login/registration screen. New accounts: select merchant/driver → complete role-specific details → OTPIQ SMS → server-side OTP verification → ordinary OnSpace Cloud session → review and save the real marketplace account. Existing accounts: select “لديّ حساب” → phone OTP → restore the saved account and immutable role from the server.
-- The frontend calls `bazgo-phone-auth` with phone/code only through the unique existing Supabase client. No OTPIQ endpoint, API credential or administrative key is imported into app code. No new frontend auth client or provider was created.
-- `OTPIQ_API_KEY` and preconfigured backend credentials are read exclusively from `Deno.env` inside Edge Functions. No secret values were read, copied to source or put in `EXPO_PUBLIC_` variables. Unit tests use synthetic values only.
-- Only `https://api.otpiq.com/api/sms` receives the provider key, as a Bearer header over HTTPS. Redirects are rejected. Payload: `phoneNumber` without the leading plus, `smsType: verification`, the server-generated `verificationCode`, `provider: sms`. Sender ID is optional for SMS and is not required by this implementation. No WhatsApp routing or fallback was enabled silently.
-- The previous delivery integration, endpoints and key requirements have been removed. Old secrets may still exist in Cloud; remove them in Cloud → Secrets and revoke them in the old provider dashboard if they are no longer used elsewhere. The app does not read them.
-- Public onboarding intentionally uses `verify_jwt=false`; inputs, rate limits and verified single-use OTP are independently enforced before any Auth user or session is issued.
-- Provider task acceptance is not confirmation of handset delivery. The UI states that sending was requested. Actual SMS delivery must be tested with consenting Iraqi phones.
+## Current user flows — 1 November 2026
+- One `/login` screen retains merchant/driver registration and every existing role-specific field/photo.
+- New registration: select a role → enter details, password and confirmation → real OTPIQ SMS → verify the six-digit code → set the Auth password on the server → review and save the marketplace account. Phone verification is required at registration, not on subsequent logins.
+- “لديّ حساب”: phone + password → ordinary backend password authentication → restore the same saved user ID, role and marketplace records. No SMS, OTP challenge, account creation or magic-link exchange runs in the password-login branch.
+- “تعيين أو استعادة الرقم السري”: phone + new password/confirmation → SMS → consume a valid OTP → set/reset the password for the existing verified phone identity → restore the account. A missing identity cannot be created by recovery.
+- Legacy accounts have no chosen password. A read-only aggregate readiness check found zero `bazgo_password_enabled` accounts before this change. They must use the one-time setup/recovery flow once; no default passwords or insecure phone-only login were introduced. Existing authenticated sessions remain valid and no users were modified by SQL.
+- Registering a number with an already-enabled password cannot overwrite that password. Only after proving phone ownership does the server return `account_exists`; the screen switches to ordinary password login. Explicit password recovery is the only reset flow.
 
-## Merchant and driver registration screen
-- The default screen now starts with merchant/driver selection before any personal input. Both account types remain on `/login`; no separate registration route or demo login was added.
-- Merchant details: full name, Iraqi mobile, company/factory name, city/area and province dropdown.
-- Driver details: name, Iraqi mobile, father/grandfather names, province, vehicle dropdown, maximum capacity in tons, and optional driver/license/truck photos from camera or gallery.
-- All required fields are validated before the first paid SMS request. Photo selection before verification is an in-memory draft only; uploads and marketplace account writes occur after real phone verification.
-- The registration draft, selected role and photo URIs survive the anonymous-to-authenticated OTP transition. Editing before verification returns to the same draft. Logout or replacement of an already authenticated user clears it. Closing the app before saving is not supported as draft persistence.
-- After OTP, the user reviews the prefilled details and presses “حفظ الحساب الحقيقي والمتابعة”. Saving requires the server-reported verified number and uses the existing account RPC and private profile storage. No unverified contact-number fallback or local account activation is allowed.
-- Existing verified phone accounts bypass new-account setup and restore their saved role/details; a registration selection never overwrites an existing account's role. Successful account restoration/saving returns through the existing root routing.
-- Added static UI-contract checks in `tests/registrationUi.test.ts` and device scenarios in `tests/REGISTRATION_TEST_PLAN.md`; these have not been executed in this editor. Read-only SQL checks verified authenticated account-setup permission, anonymous denial, role immutability, the verified-number trigger, private profile storage and client OTP-table read denial.
+## Credential and session boundaries
+- The frontend uses the existing unique client and `functions.invoke('bazgo-phone-auth')`. Passwords travel over HTTPS to this Edge Function, then to the backend's normal Auth password API. No direct OTPIQ request or admin credential appears in client modules.
+- Passwords are held only in transient input state. They are never added to `RegistrationForm`, marketplace profiles, local persistent storage, logs, OTP tables or notifications. State clears on mode changes, successful sign-in, logout and authenticated-user replacement. Do not capture sensitive request bodies in monitoring.
+- Password minimum follows the current backend setting: six characters. Both client and server enforce at most 72 UTF-8 bytes, avoiding password-hash truncation. Confirmation must match exactly; passwords are not trimmed or digit-normalized. Masked fields support show/hide and password-manager autocomplete.
+- Password hashing/storage is managed by the existing Auth service. This app does not implement custom hashing or store password hashes in public tables.
+- The Edge Function resolves phone → private verified identity → internal Auth email and verifies the submitted password with `signInWithPassword`. It checks verified phone equality, password-enabled server app metadata, and returned user ID before issuing a session. Unknown phones, legacy accounts and incorrect passwords share the same public `invalid_credentials` response.
+- The `bazgo_password_enabled` marker is written to protected Auth app metadata only after valid consumed OTP; it cannot be enabled through a client profile edit.
+- Password login does not require or even read `OTPIQ_API_KEY`. SMS outages or missing provider configuration do not block accounts with passwords. Built-in backend credentials are still required, only server-side.
+- OTP-verified registration/recovery retains the existing internal, non-deliverable email bridge and server magic-link session exchange. Internal emails, link hashes and administrative credentials remain on the server. Both login paths return only the requesting user's ordinary access/refresh tokens.
+- The existing client's `setSession` and AuthProvider `onAuthStateChange` handle persistence. Providers, root AuthRouter, account guards, role immutability, private uploads, booking scheduler and negotiation permissions remain unchanged.
 
-## Server OTP lifecycle
-1. Validate a normalized Iraqi mobile number and enforce phone/IP/global rate limits.
-2. Acquire the shared per-phone provisioning lease. It serializes sends and verification across Edge Function instances.
-3. Generate a six-digit code with Web Crypto and unbiased rejection sampling. Leading zeros are supported. No accepted code is hard-coded or generated by the client.
-4. Create a unique challenge with a HMAC-SHA-256 digest keyed by the existing server service-role secret, bound to the phone hash and challenge UUID. Neither raw OTP nor the HMAC key is stored in PostgreSQL. A plain unkeyed hash of a six-digit code would permit offline guessing; it is not used.
-5. Replace the previous challenge in `pending` state, then send the plaintext code to OTPIQ for delivery. Only a valid accepted task activates the challenge. Failed or uncertain delivery requests remain unusable, with no automatic retry that could duplicate SMS charges.
-6. The code is valid for five minutes from activation. Verification uses database clock time, not the UI countdown or a scheduler.
-7. A row-locked RPC atomically checks the challenge ID, state, expiry and digest. Five incorrect checks lock the code. Successful verification consumes it before any Auth operation. Concurrent checks can approve only once. Resends invalidate the old code and stale send completions cannot activate a replacement challenge.
-8. After approval, preserve the existing identity lookup and provisioning logic. Existing verified phone accounts retain the same user IDs and marketplace records. Incorrect, expired, locked, failed-send or replayed codes cannot create Auth users or sessions.
-9. If a later Auth/session operation fails after consumption, the code stays consumed; request a new code rather than replaying it. Rotating the server service-role secret invalidates active digests; request new codes after rotation.
+## OTP lifecycle and safety
+1. Validate an Iraqi mobile, validate the new password/intent on verification, enforce shared phone/IP/global limits and acquire the per-phone provisioning lease.
+2. Generate a six-digit code using unbiased Web Crypto randomness. Store a HMAC-SHA-256 digest bound to the phone hash and challenge UUID, keyed by the existing server service-role secret. Never store raw OTP.
+3. Replace the previous challenge in `pending` state before sending. Only an accepted OTPIQ task activates it. Failed or uncertain tasks remain unusable; no automatic paid-send retries.
+4. Expire after five minutes using database time. Five incorrect checks lock the challenge. A row-locked RPC atomically consumes the correct code once; replay and stale resend completions cannot approve it.
+5. Only after consumption may registration provision an identity or recovery change its password. Recheck the verified Auth phone before password updates. A password/session failure does not reactivate a consumed code.
+6. If password update succeeded but session exchange failed, sign in with the chosen password; use explicit recovery if necessary. Do not repeatedly try registration to reset an existing password.
+7. Server service-role rotation invalidates active OTP digests; request new codes after rotation.
 
-## Sessions and database privacy
-- Preserve the existing email-capable AuthProvider bridge: a random non-deliverable address under `phone.bazgo.invalid` is an internal Auth identifier, never an entered email or emailed verification link.
-- Internal addresses, generated link hashes and admin credentials stay on the server. A successful response contains only that authenticated user's ordinary access and refresh tokens. The existing client's `setSession` and AuthProvider listener handle persistence and session restoration.
-- `bazgo_phone_identities` still references `user_profiles`; its unique phone/user constraints and stable bootstrap address remain unchanged. No old email accounts or unverified contact numbers are silently linked to phone accounts.
-- RLS and revoked client privileges protect identities, bootstrap leases, limits and the new OTP challenge table. New challenge RPCs are executable only by service role. There are no anonymous/authenticated direct-read or write policies for this server-only operational metadata.
-- `bazgo_verified_phone` exposes only the requesting user's number. The existing database trigger rejects changes to a verified account phone; the edit UI remains read-only for verified phones.
-- Booking scheduler checks, reservation locking, negotiations and existing role/marketplace behavior are unchanged. This integration does not bypass booking readiness.
+OTPIQ uses `https://api.otpiq.com/api/sms` only, with Bearer credentials, redirects rejected, `phoneNumber` without `+`, `smsType: verification`, the server-generated `verificationCode`, and `provider: sms`. No silent WhatsApp fallback. Provider task acceptance does not prove handset delivery.
+
+## Database permissions and limits
+- `bazgo_phone_identities` references `user_profiles`, with unique phone/user constraints. Random bootstrap addresses and verified phone protections are preserved. No unverified contact number or legacy email account is silently linked.
+- Identity, challenge, lease and rate-limit tables remain RLS-protected and inaccessible to anonymous/authenticated direct reads and writes. OTP RPCs remain service-only. `bazgo_verified_phone` exposes only the authenticated caller's verified phone.
+- No schema migration or manual password assignment is necessary for this change. Runtime password changes use the Auth admin API only after real ownership verification, never SQL updates to user records.
+- Sends: five/phone/hour, minimum 60-second interval; thirty/IP/hour; global 500/hour.
+- OTP checks: ten/phone/ten minutes, minimum two-second interval; one hundred/IP/hour; global 2000/hour; additional five-wrong-attempt challenge lock.
+- Password attempts: five/phone/ten minutes, minimum two-second interval; thirty/IP/hour; global 500/hour. Failed attempts count. The UI displays returned retry time and never automatically substitutes OTP login after incorrect credentials.
+- Gateway must overwrite forwarded IP headers with trusted caller IPs; unknown callers share a conservative bucket. Add gateway bot protection before high-volume launch. Operational retention needs administrative planning; this change deletes no records.
 
 ## Deployment and configuration
-1. Keep both `20261022110000_bazgo_phone_otp.sql` and `20261031100000_bazgo_otpiq_challenges.sql`. The latter was applied to this project on 31 October 2026 without modifying existing user/marketplace records.
-2. Deploy `supabase/functions/bazgo-phone-auth/index.ts` and its `_shared` CORS, configuration, validation, cryptography and OTPIQ adapter files. The public function entry remains in `supabase/config.toml`; OnSpace deploys Edge Functions from these directories.
-3. Set `OTPIQ_API_KEY` only through the secure key UI / Cloud → Secrets. It is already configured by the user. Existing `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `SUPABASE_ANON_KEY` remain server environment variables and are not requested or changed.
-4. Use an OTPIQ **Production API key**, active project and sufficient SMS credit. **Do not configure a Dev Key on this real login deployment.** OTPIQ Dev Keys redirect every code to a configured developer number instead of the entered number; using one here would invalidate phone-ownership verification. The editor cannot determine the key's account/type without authorized provider testing. Verify its type in the OTPIQ dashboard.
-5. Keep OTPIQ fraud/spending controls enabled. The gateway must replace forwarded-IP headers with a trusted caller IP; unknown callers share a conservative IP bucket. Phone/global limits apply independently. Add gateway-level bot protection before a high-volume public launch.
-6. Limits remain: five sends/phone/hour with at least 60 seconds between sends; ten verification requests/phone/ten minutes with at least two seconds between requests; thirty sends and one hundred checks/IP/hour; global caps of 500 sends and 2000 checks/hour. There is an additional five-incorrect-attempt limit per challenge. Failed requests count toward request limits.
-7. Configuration trims surrounding whitespace and rejects quoted API keys or accidentally copied Bearer headers. It does not assume an undocumented API-key prefix. Missing provider settings are named without disclosing values; missing built-in settings produce a separate admin-authentication message.
-8. Responses use `Cache-Control: no-store`. Logs contain request IDs, sanitized internal stages, provider status numbers and controlled error codes only. Never log phone numbers, raw OTPs, provider bodies, session tokens, configuration objects or keys; disable sensitive-body capture in external monitoring.
-9. OTP challenges retain at most one row per phone hash; expiry is enforced on every check. Operational records still need an administrative retention plan. No existing records were deleted in this change.
+1. Retain both phone/OTP migrations: `20261022110000_bazgo_phone_otp.sql` and `20261031100000_bazgo_otpiq_challenges.sql`.
+2. Deploy `bazgo-phone-auth` with all its `_shared` modules, including new `phonePassword.ts`. Its public `verify_jwt=false` configuration is intentional; password verification or consumed OTP is enforced before session issuance.
+3. Keep `OTPIQ_API_KEY` in Cloud → Secrets only; it is already configured. Built-in backend URL/admin/anon settings remain server-side. No new third-party secret is needed.
+4. Use an OTPIQ Production key, active project and sufficient SMS credit for registration/recovery. Never use a Dev Key for real authentication: it reroutes every OTP to a developer number and invalidates ownership proof.
+5. No automatic legacy-account migration occurs. Tell existing users to select “تعيين أو استعادة الرقم السري” once, then use “لديّ حساب” for password-only login.
+6. New clients send `{action: 'password_login', phone, password}` or `{action: 'verify', phone, code, password, intent: 'register' | 'reset_password'}`. Older clients without a password/intent must be upgraded. Public `send` requests remain `{action: 'send', phone}`.
+7. Responses remain `Cache-Control: no-store`; logs contain request IDs, controlled stages/statuses only, not passwords, phone numbers, OTPs, configuration or session tokens. Disable sensitive-body capture in external monitoring.
 
 ## Troubleshooting
-- `configuration_missing`: server settings failed validation before contacting OTPIQ. Correct only the named provider secret via the secure UI; built-in server variables should be reviewed administratively rather than pasted into chat.
-- `sms_unavailable`: OTPIQ rejected authorization/permissions; verify the Production key and project SMS permission.
-- `insufficient_credit`: replenish the project's SMS balance.
-- `provider_rate_limit` / `rate_limited`: wait the returned retry time. Do not repeatedly resend or bypass throttling.
-- `provider_failed` / `provider_unreachable`: the task was not accepted or delivery status is uncertain. Pending codes are not valid; retry later. Raw OTPIQ messages are intentionally not returned because they may include sensitive data.
-- `code_expired`: code is expired, consumed, replaced, pending or missing; request a new one. `code_locked`: five incorrect attempts were reached; wait and request a replacement.
-- A task ID confirms acceptance into OTPIQ's queue, not delivery. Check OTPIQ's delivery dashboard for carrier failures. This implementation does not add delivery webhooks or claim a message reached the phone.
+- `invalid_credentials`: wrong phone/password or a legacy account without a password. Use the visible setup/recovery action if appropriate; no SMS is sent automatically.
+- `invalid_password`: password below six characters or above 72 UTF-8 bytes. Confirmation errors are shown before any SMS request.
+- `account_exists`: ownership has been verified but the account already has a password; sign in or explicitly recover it.
+- `account_not_found`: after OTP approval, recovery found no verified identity. Use new registration.
+- `rate_limited`: wait the returned retry time; do not bypass limits.
+- `configuration_missing`, `sms_unavailable`, `insufficient_credit`, `provider_failed`, `provider_unreachable`: apply only to OTP flows; check server configuration, OTPIQ Production key, project permission and credit. Password login remains independent of OTPIQ.
+- `code_expired` / `code_locked`: request a replacement after the cooldown. Wrong, consumed, pending or replaced codes cannot update passwords or create sessions.
+- SMS acceptance is queue acceptance only; inspect OTPIQ delivery tracking and test with consenting Iraqi handsets.
 
-## Verification performed and remaining tests
-The SQL privacy check in this editor verified: challenge RLS enabled; anonymous and authenticated challenge reads denied; anonymous consume and authenticated begin/activate RPC access denied; service role begin/consume access allowed; verified-phone profile protection still present. A source-pattern check found no previous provider key/endpoint references and confined OTPIQ key references to server configuration and synthetic tests, not frontend modules.
-No command runner is available here. The following tests were supplied but **not executed**:
-- Pure validation/configuration/provider mocks/cryptography: `deno test tests/phoneOtp.test.ts tests/phoneAuthConfig.test.ts tests/otpiq.test.ts tests/otpChallenge.test.ts`.
-- Static frontend credential boundary: `deno test --allow-read tests/phoneAuthBoundary.test.ts`. This checks source imports/references, not compiled device bundles.
-- Invalid public requests and anonymous permissions: `TEST_BACKEND_URL` and `TEST_ANON_KEY`, then `deno test --allow-env --allow-net tests/phoneAuth.integration.test.ts`. These tests send no SMS and create no accounts.
-- Challenge lifecycle, failed/pending delivery, five-attempt lock, concurrent checks, replay and resend races: set `TEST_DISPOSABLE_BACKEND=true`, `TEST_BACKEND_URL`, `TEST_SERVICE_ROLE_KEY` **only for a disposable test environment**, then `deno test --allow-env --allow-net tests/otpChallenge.integration.test.ts`. Random operational fixtures are retained; no Auth users or marketplace records are created. Add `TEST_SLOW_OTP_EXPIRY=true` to run the actual five-minute server-expiry test. Never place test administrative credentials in client environment variables.
-
-Before publishing, verify on real iOS/Android devices with consenting Iraqi recipients:
-- SMS receipt with a Production key, new merchant/driver onboarding, Arabic phone digits, leading-zero OTP and SMS autofill.
-- Existing verified phone account login: same user ID, role, loads and chat history; logout/restart/session restoration.
-- Incorrect, expired, replaced and replayed codes; repeated and simultaneous requests; resend after 60 seconds.
-- Offline/timeout, invalid key, insufficient credit, provider rejection and carrier delivery errors.
-- Private identity/challenge reads and verified-number changes remain denied for clients.
-- Inspect compiled mobile bundles and network responses for absence of OTPIQ/admin credentials. Only the ordinary verified user's session tokens are expected on successful login.
+## Verification and remaining tests
+Read-only SQL confirmed identity RLS, anonymous read denial, service read access and the verified-phone guard. No account passwords were read or changed. This editor has no command runner; supplied tests have **not been executed**, and no real OTP was sent:
+- `deno test tests/phonePassword.test.ts tests/phoneAuthConfig.test.ts tests/phoneOtp.test.ts tests/otpiq.test.ts tests/otpChallenge.test.ts`
+- `deno test --allow-read tests/passwordAuthUi.test.ts tests/registrationUi.test.ts tests/phoneAuthBoundary.test.ts`
+- Invalid requests/anonymous permissions: set server/test-only `TEST_BACKEND_URL`, `TEST_ANON_KEY`, then run `deno test --allow-env --allow-net tests/phoneAuth.integration.test.ts`.
+- Existing OTP lifecycle integration fixtures and five-minute expiry tests remain opt-in on a disposable backend; follow the comments in `tests/otpChallenge.integration.test.ts`. Never place test admin credentials in client environment variables.
+- Device acceptance steps are in `tests/REGISTRATION_TEST_PLAN.md`. Required cases include legacy one-time setup, new role-based registration, successful/wrong password without SMS, explicit reset, old-password rejection after reset, expired/replayed OTP, registration refusing password overwrite, rate limits, session restoration and private storage access.
 
 ## Official references
 - [OTPIQ Send SMS](https://docs.otpiq.com/api-reference/messaging/post.md)
 - [API key security](https://docs.otpiq.com/quickstart.md)
-- [SMS Sender ID is optional](https://docs.otpiq.com/useful-articles/do-i-need-sender-id.md)
 - [Dev Keys reroute recipients](https://docs.otpiq.com/useful-articles/how-dev-key-works.md)

@@ -7,9 +7,10 @@ const readSource = (path: string) => Deno.readTextFile(new URL(`../${path}`, imp
 Deno.test('Default registration exposes role selection and the shared details component before OTP', async () => {
   const screen = await readSource('app/login.tsx');
   const hook = await readSource('hooks/useSecureLogin.ts');
-  assert(hook.includes("useState<'register' | 'login'>('register')"));
+  assert(hook.includes("useState<'register' | 'login' | 'recovery'>('register')"));
   assert(screen.includes('<AccountTypePicker'));
-  assert(screen.includes('login.role ? <RegistrationDetails'));
+  assert(screen.includes('login.role ? <>'));
+  assert(screen.includes('<RegistrationDetails'));
   assert(screen.includes("login.setMode('login')"));
   assert(screen.includes('login.user && login.account'));
   assert(screen.includes('حفظ الحساب الحقيقي والمتابعة'));
@@ -42,7 +43,7 @@ Deno.test('The draft reset is guarded against clearing the anonymous-to-authenti
   const hook = await readSource('hooks/useSecureLogin.ts');
   assert(hook.includes('if (previousUserId.current && previousUserId.current !== nextUserId)'));
   assert(hook.includes('previousUserId.current = nextUserId;'));
-  assert(hook.includes('await verifyPhoneCode(sentPhone, otp)'));
+  assert(hook.includes("await verifyPhoneCode(sentPhone, otp, password, mode === 'recovery' ? 'reset_password' : 'register')"));
   assert(!hook.includes('identity.phone || form.phone'));
   assert(!hook.includes('prepareDemoRegistration'));
 });
