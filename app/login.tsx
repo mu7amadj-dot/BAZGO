@@ -26,9 +26,9 @@ export default function LoginScreen() {
   if (login.user && login.account) return <Redirect href="/" />;
   const submitDisabled = login.driverWizard
     ? login.driverStep === 2 && (signedIn ? !login.verifiedPhone : login.codeSent ? login.otp.length !== login.codeLength || login.expiresIn <= 0 : login.seconds > 0)
-    : signedIn ? !login.role || !login.verifiedPhone : login.codeSent ? login.otp.length !== login.codeLength || login.expiresIn <= 0 : registration ? !login.role : login.mode === 'login' && login.passwordRetryIn > 0;
+    : signedIn ? !login.role || !login.verifiedPhone : login.codeSent ? login.otp.length !== login.codeLength || login.expiresIn <= 0 : login.mode === 'login' ? login.passwordRetryIn > 0 : login.seconds > 0 || (registration && !login.role);
   const driverSubmitTitle = login.driverStep === 5 ? 'إنشاء حساب السائق'
-    : login.driverStep === 2 && !signedIn ? login.codeSent ? 'تحقق وانتقل للخطوة التالية' : 'التالي · إرسال رمز التحقق' : 'التالي';
+    : login.driverStep === 2 && !signedIn ? login.codeSent ? 'تحقق وانتقل للخطوة التالية' : login.seconds > 0 ? `إرسال الرمز بعد ${login.seconds} ثانية` : 'التالي · إرسال رمز التحقق' : 'التالي';
   return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -78,9 +78,9 @@ export default function LoginScreen() {
           <Pressable onPress={() => login.setMode('recovery')} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel="تعيين أو استعادة الرقم السري" style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>تعيين أو استعادة الرقم السري</Text></Pressable>
           {login.passwordRetryIn > 0 ? <Text accessibilityLiveRegion="polite" style={styles.caption}>{`يمكنك إعادة محاولة الدخول بعد ${login.passwordRetryIn} ثانية.`}</Text> : null}
         </View>}
-        {login.error || login.syncError ? <View style={styles.error} accessibilityLiveRegion="polite"><MaterialCommunityIcons name="alert-circle-outline" color={colors.danger} size={20} /><Text style={styles.errorText}>{login.error || login.syncError}</Text></View> : null}
+        {login.error || login.syncError ? <View style={styles.error} accessibilityLiveRegion="polite"><MaterialCommunityIcons name="alert-circle-outline" color={colors.danger} size={20} /><View style={styles.errorCopy}><Text style={styles.errorText}>{login.error || login.syncError}</Text>{login.errorReference ? <Text selectable style={styles.errorReference}>{`مرجع الخطأ: ${login.errorReference}`}</Text> : null}</View></View> : null}
         {login.notice && !signedIn ? <Text accessibilityLiveRegion="polite" style={styles.notice}>{login.notice}</Text> : null}
-        {!login.driverWizard && !signedIn && !login.codeSent && login.mode !== 'login' ? <Text style={styles.caption}>رمز SMS مطلوب فقط للتسجيل الجديد أو تعيين واستعادة الرقم السري. لا نطلبه عند الدخول المعتاد.</Text> : null}
+        {!login.driverWizard && !signedIn && !login.codeSent && login.mode !== 'login' ? <Text style={styles.caption}>{login.seconds > 0 ? `يمكن طلب رمز جديد بعد ${login.seconds} ثانية.` : 'رمز SMS مطلوب فقط للتسجيل الجديد أو تعيين واستعادة الرقم السري. لا نطلبه عند الدخول المعتاد.'}</Text> : null}
         {login.syncError && signedIn ? <Button title="إعادة تحميل الحساب" onPress={login.reload} disabled={login.operationLoading} /> : <Button title={login.driverWizard ? driverSubmitTitle : signedIn ? 'حفظ الحساب الحقيقي والمتابعة' : login.codeSent ? recovery ? 'تحقق واحفظ الرقم السري' : 'تحقق وتابع' : registration ? 'متابعة وإرسال رمز التحقق' : recovery ? 'إرسال رمز لتعيين الرقم السري' : 'تسجيل الدخول'} onPress={login.submit} loading={login.operationLoading} disabled={submitDisabled} />}
         {login.driverWizard && login.driverStep > 1 ? <Button title="السابق" variant="ghost" onPress={login.previousDriverStep} disabled={login.operationLoading} /> : null}
         {signedIn ? <Button title="تسجيل الخروج" variant="ghost" onPress={login.logout} loading={login.operationLoading} /> : login.codeSent && !login.driverWizard ? <Pressable onPress={login.changePhone} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel={registration ? 'تعديل بيانات التسجيل أو رقم الهاتف' : 'تعديل رقم الهاتف أو الرقم السري'} style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>{registration ? 'تعديل البيانات أو رقم الهاتف' : 'تعديل الهاتف أو الرقم السري'}</Text></Pressable> : recovery ? <Pressable onPress={() => login.setMode('login')} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel="العودة لتسجيل الدخول" style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>العودة لتسجيل الدخول</Text></Pressable> : null}
@@ -116,6 +116,8 @@ const styles = StyleSheet.create({
   linkText: { ...typography.bodyStrong, color: colors.primary, textAlign: 'center' },
   pressed: { opacity: 0.7 },
   error: { flexDirection: 'row-reverse', gap: spacing.sm, alignItems: 'center' },
-  errorText: { ...typography.body, color: colors.danger, flex: 1, textAlign: 'right' },
+  errorCopy: { flex: 1, gap: spacing.sm },
+  errorText: { ...typography.body, color: colors.danger, textAlign: 'right' },
+  errorReference: { ...typography.caption, color: colors.textSubtle, textAlign: 'right', writingDirection: 'ltr' },
   notice: { ...typography.body, color: colors.success, textAlign: 'right' },
 });

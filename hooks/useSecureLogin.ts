@@ -29,6 +29,7 @@ export function useSecureLogin() {
   const [form, setForm] = useState<RegistrationForm>({ ...emptyRegistrationForm });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [errorReference, setErrorReference] = useState('');
   const [notice, setNotice] = useState('');
   const [resendAt, setResendAt] = useState(0);
   const [expiresAt, setExpiresAt] = useState(0);
@@ -100,6 +101,12 @@ export function useSecureLogin() {
   }, [resendAt, expiresAt, passwordRetryAt]);
   const handleError = useCallback((issue: unknown) => {
     setError(issue instanceof Error ? issue.message : 'تعذر إكمال العملية.');
+    setErrorReference(issue instanceof PhoneAuthError ? issue.requestId : '');
+    if (issue instanceof PhoneAuthError && (issue.code.startsWith('provider_') || ['sms_unavailable', 'insufficient_credit'].includes(issue.code))) {
+      // The failed send replaced the old challenge on the server. Do not show an
+      // unusable OTP form, or immediately retry and mask the cause with a 429.
+      setCodeSent(false); setOtpValue(''); setSentPhone(''); setExpiresAt(0);
+    }
     if (issue instanceof PhoneAuthError && issue.retryAfter > 0) {
       const retryAt = Date.now() + issue.retryAfter * 1000;
       if (mode === 'login') setPasswordRetryAt((current) => Math.max(current, retryAt));
@@ -235,5 +242,5 @@ export function useSecureLogin() {
     loading: auth.loading || booking.loading || identity.loading, operationLoading, mode, setMode, phone: form.phone, setPhone,
     password, setPassword, confirmation, setConfirmation, passwordRetryIn,
     verifiedPhone: identity.phone, sentPhone, otp, setOtp, codeLength, codeSent, expiresIn,
-    role, setRole, driverWizard, driverStep, previousDriverStep, form, setField, provinceItems, vehicleItems, error, notice, seconds, submit, resend, changePhone, logout };
+    role, setRole, driverWizard, driverStep, previousDriverStep, form, setField, provinceItems, vehicleItems, error, errorReference: error ? errorReference : '', notice, seconds, submit, resend, changePhone, logout };
 }

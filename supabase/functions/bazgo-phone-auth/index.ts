@@ -116,6 +116,7 @@ Deno.serve(async (req: Request) => {
         const finished = await admin.rpc('bazgo_finish_otp_send', { p_phone_hash: phoneHash, p_challenge: challengeId, p_accepted: true });
         if (finished.error || finished.data !== true) throw new Error('otp_challenge_activate_failed');
         activated = true;
+        console.log('bazgo-phone-auth SMS task accepted', { requestId, provider: 'sms' });
         return reply(200, { sent: true, phone, codeLength: otpCodeLength, retryAfter: otpResendAfter, expiresIn: otpExpiresIn });
       } finally {
         if (!activated) {
@@ -187,7 +188,7 @@ Deno.serve(async (req: Request) => {
     return reply(200, { session: { access_token: sessionResult.data.session.access_token, refresh_token: sessionResult.data.session.refresh_token } });
   } catch (issue) {
     if (issue instanceof OtpiqError) {
-      console.error('bazgo-phone-auth OTPIQ failure', { requestId, status: issue.providerStatus, code: issue.code });
+      console.error('bazgo-phone-auth OTPIQ failure', { requestId, status: issue.providerStatus, code: issue.code, reason: issue.reason });
       return reply(issue.status, { error: issue.message, code: issue.code, retryAfter: issue.retryAfter, requestId });
     }
     if (issue instanceof PublicError) return reply(issue.status, { error: issue.message, code: issue.code, retryAfter: issue.retryAfter, requestId });

@@ -1,8 +1,9 @@
 // OTPIQ delivery adapter. Credentials and verification codes never leave the server except to OTPIQ.
 import { normalizeIraqiPhone, validateOtp } from './phoneOtp.ts';
+import { classifyOtpiqFailure } from './otpiqFailure.ts';
 
 export class OtpiqError extends Error {
-  constructor(public status: number, public code: string, message: string, public retryAfter = 0, public providerStatus = 0) { super(message); }
+  constructor(public status: number, public code: string, message: string, public retryAfter = 0, public providerStatus = 0, public reason = 'unknown') { super(message); }
 }
 
 export async function sendOtpiqCode(apiKey: string, phone: string, code: string, fetcher: typeof fetch = fetch): Promise<void> {
@@ -18,16 +19,16 @@ export async function sendOtpiqCode(apiKey: string, phone: string, code: string,
     });
   } catch {
     // Delivery is uncertain on a timeout; never treat it as successful or retry automatically.
-    throw new OtpiqError(502, 'provider_unreachable', 'OTPIQ: تعذر الاتصال بخدمة SMS. أعد طلب الرمز لاحقاً.');
+    throw new OtpiqError(502, 'provider_unreachable', 'OTPIQ: تعذر الاتصال بخدمة SMS. انتظر دقيقة ثم أعد طلب الرمز؛ لن نكرر الإرسال تلقائياً.', 60, 0, 'provider_transport_failure');
   }
   const parsed: unknown = await response.json().catch(() => null);
   const details = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
-  // Provider messages/bodies may contain secrets or PII and must never be forwarded or logged.
-  if (response.status === 429) throw new OtpiqError(429, 'provider_rate_limit', 'OTPIQ: تم تجاوز حد إرسال الرسائل. حاول لاحقاً.', 60, response.status);
-  if (response.status === 401 || response.status === 403) throw new OtpiqError(503, 'sms_unavailable', 'OTPIQ: على الإدارة مراجعة صلاحية مفتاح API وأذونات إرسال SMS.', 0, response.status);
-  if (details.canCover === false || response.status === 402) throw new OtpiqError(503, 'insufficient_credit', 'OTPIQ: رصيد إرسال SMS غير كافٍ. تواصل مع إدارة التطبيق.', 0, response.status);
-  if (!response.ok || typeof details.smsId !== 'string' || !details.smsId || details.smsId.length > 128 || details.error) {
-    throw new OtpiqError(502, 'provider_failed', 'OTPIQ: لم يُقبل طلب إرسال رمز SMS. حاول لاحقاً أو تواصل مع الإدارة.', 0, response.status);
+  // Interpret known OTPIQ 400 failures instead of hiding trial/credit/spending restrictions
+  // behind a generic 502. Logs and responses contain fixed reasons, never provider text.
+  const failure = classifyOtpiqFailure(response.status, details);
+  if (failure) throw new OtpiqError(failure.status, failure.code, failure.message, failure.retryAfter, response.status, failure.reason);
+  if (!response.ok || typeof details.smsId !== 'string' || !details.smsId || details.smsId.length > 128) {
+    throw new OtpiqError(502, 'provider_failed', 'OTPIQ: استجابة إرسال SMS غير صالحة. أعد المحاولة لاحقاً.', 60, response.status, 'invalid_success_response');
   }
   // A task ID means queued/accepted, not handset delivery. Nothing from the provider is returned to the client.
 }

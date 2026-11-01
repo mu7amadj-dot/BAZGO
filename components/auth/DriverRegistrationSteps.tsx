@@ -53,7 +53,10 @@ export const DriverRegistrationSteps = memo(function DriverRegistrationSteps({ s
           <Text style={styles.caption} accessibilityLiveRegion="polite">{expiresIn > 0 ? `صلاحية الرمز: ${Math.floor(expiresIn / 60)}:${String(expiresIn % 60).padStart(2, '0')}` : 'انتهت صلاحية الرمز. أرسل رمزاً جديداً.'}</Text>
           <Button variant="ghost" title={resendIn > 0 ? `إعادة الإرسال خلال ${resendIn} ثانية` : 'إعادة إرسال الرمز'} onPress={onResend} disabled={disabled || resendIn > 0} />
           <Pressable onPress={onChangePhone} disabled={disabled} accessibilityRole="button" style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>تعديل رقم الهاتف</Text></Pressable>
-        </> : <Text style={styles.body}>اضغط التالي لإرسال OTP عبر SMS. يتم التحقق في هذه الخطوة قبل متابعة بيانات المركبة؛ لن يُطلب الرمز عند دخولك لاحقاً بالرقم السري.</Text>}
+        </> : <>
+          <Text style={styles.body}>اضغط التالي لإرسال OTP عبر SMS. يتم التحقق في هذه الخطوة قبل متابعة بيانات المركبة؛ لن يُطلب الرمز عند دخولك لاحقاً بالرقم السري.</Text>
+          {resendIn > 0 ? <Text style={styles.caption} accessibilityLiveRegion="polite">{`يمكن طلب رمز جديد بعد ${resendIn} ثانية. لم يتم تأكيد إرسال رمز صالح؛ لا تكرر الطلب أثناء الانتظار.`}</Text> : null}
+        </>}
       </> : step === 3 ? <>
         <SelectField compact icon="truck-outline" label="نوع المركبة" title="اختر نوع المركبة" items={vehicleItems} selectedId={form.vehicleType} onSelect={(value) => onFieldChange('vehicleType', value)} />
         <Field compact icon="weight-kilogram" label="أقصى حمولة (طن)" value={form.maxCapacity} onChangeText={(value) => onFieldChange('maxCapacity', value)} keyboardType="decimal-pad" maxLength={12} editable={!disabled} />

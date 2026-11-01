@@ -4,7 +4,7 @@ import { normalizeDigits, normalizePhone } from './registrationService';
 import { validatePassword } from './passwordValidation';
 
 export class PhoneAuthError extends Error {
-  constructor(message: string, public retryAfter = 0, public code = '') { super(message); }
+  constructor(message: string, public retryAfter = 0, public code = '', public requestId = '') { super(message); }
 }
 export interface SmsCodeResult { sent: boolean; phone: string; codeLength: number; retryAfter: number; expiresIn: number; }
 function validPhone(value: string): string {
@@ -19,7 +19,9 @@ async function invokePhoneAuth<T>(body: Record<string, string>): Promise<T> {
       try {
         const text = await error.context.text();
         const details = JSON.parse(text);
-        throw new PhoneAuthError(typeof details.error === 'string' ? details.error : `تعذر الاتصال بخدمة المصادقة (${error.context.status}).`, Number(details.retryAfter) || 0, details.code ?? '');
+        const requestId = typeof details.requestId === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(details.requestId) ? details.requestId : '';
+        const retryAfter = Number(details.retryAfter);
+        throw new PhoneAuthError(typeof details.error === 'string' ? details.error : `تعذر الاتصال بخدمة المصادقة (${error.context.status}).`, Number.isFinite(retryAfter) ? Math.min(3600, Math.max(0, retryAfter)) : 0, typeof details.code === 'string' ? details.code : '', requestId);
       } catch (issue) { if (issue instanceof PhoneAuthError) throw issue; }
     }
     throw new PhoneAuthError('تعذر الاتصال بخدمة التحقق. تحقق من اتصال الإنترنت وحاول مجدداً.');
