@@ -40,7 +40,7 @@ export const RegistrationDetails = memo(function RegistrationDetails({ role, for
       <View style={styles.sectionHeader}><MaterialCommunityIcons name="truck-outline" size={22} color={colors.primary} /><Text style={styles.sectionTitle}>المركبة والوثائق</Text></View>
       <SelectField compact icon="truck-outline" label="نوع المركبة" title="اختر نوع المركبة" items={vehicleItems} selectedId={form.vehicleType} onSelect={(value) => onFieldChange('vehicleType', value)} />
       <Field compact icon="weight-kilogram" label="أقصى حمولة (طن)" value={form.maxCapacity} onChangeText={(value) => onFieldChange('maxCapacity', value)} keyboardType="numeric" editable={!disabled} />
-      <Text style={styles.label}>صور السائق والمركبة (اختياري)</Text>
+      <Text style={styles.label}>صور السائق والمركبة (إلزامية للتسجيل)</Text>
       <View style={styles.uploadRow}>
         <ImageUpload label="صورة السائق" value={form.driverPhoto} onChange={(value) => onFieldChange('driverPhoto', value)} icon="account-outline" disabled={disabled} />
         <ImageUpload label="إجازة السوق" value={form.licensePhoto} onChange={(value) => onFieldChange('licensePhoto', value)} icon="card-account-details-outline" disabled={disabled} />

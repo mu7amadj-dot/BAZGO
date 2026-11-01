@@ -31,7 +31,7 @@ Deno.test('Registration validates before sending and requires a verified identit
   const validation = hook.indexOf('prepareRegistration(role, form);');
   const sending = hook.indexOf('await sendCode();', validation);
   const guard = hook.indexOf('if (!identity.phone) throw');
-  const upload = hook.indexOf('await prepareServerProfile');
+  const upload = hook.indexOf('await prepareServerProfile', guard);
   assert(validation >= 0 && sending > validation);
   assert(guard >= 0 && upload > guard);
   assert(hook.includes('phone: identity.phone }'));

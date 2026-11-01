@@ -50,6 +50,23 @@ export async function verifyPhoneCode(phone: string, code: string, password: str
   const result = await invokePhoneAuth<{ session?: { access_token: string; refresh_token: string } }>({ action: 'verify', phone: validPhone(phone), code: token, password, intent });
   await savePhoneSession(result);
 }
+export async function verifyDriverPhoneCode(phone: string, code: string): Promise<void> {
+  const token = normalizeDigits(code).replace(/\s/g, '');
+  if (!/^\d{6}$/.test(token)) throw new PhoneAuthError('أدخل رمز التحقق المكوّن من 6 أرقام المرسل إلى رقمك.');
+  // OTP establishes only a verified session, not a marketplace account or a password.
+  const result = await invokePhoneAuth<{ session?: { access_token: string; refresh_token: string } }>({ action: 'verify_driver_phone', phone: validPhone(phone), code: token });
+  await savePhoneSession(result);
+}
+export async function finishDriverPassword(phone: string, password: string): Promise<void> {
+  validatePassword(password);
+  const result = await invokePhoneAuth<{ completed: boolean }>({ action: 'finish_driver_registration', phone: validPhone(phone), password });
+  if (result.completed !== true) throw new PhoneAuthError('تعذر حفظ حماية الحساب. حاول مجدداً.');
+}
+export async function fetchPendingDriverRegistration(): Promise<boolean> {
+  const { data, error } = await getSupabaseClient().auth.getUser();
+  if (error || !data.user) throw new PhoneAuthError('تعذر تحميل حالة التسجيل. أعد تحميل الحساب.');
+  return data.user.app_metadata?.bazgo_onboarding_role === 'driver';
+}
 async function savePhoneSession(result: { session?: { access_token: string; refresh_token: string } }): Promise<void> {
   if (typeof result.session?.access_token !== 'string' || !result.session.access_token || typeof result.session.refresh_token !== 'string' || !result.session.refresh_token) throw new PhoneAuthError('لم يتم إنشاء جلسة تسجيل الدخول.');
   // Reuse the existing client. AuthProvider is updated by its onAuthStateChange listener.

@@ -18,7 +18,7 @@ Deno.test('Existing-account submit calls password login, not SMS or OTP verifica
 
 Deno.test('Password login is server-verified and independent of provider configuration or OTP provisioning', async () => {
   const edge = await source('supabase/functions/bazgo-phone-auth/index.ts');
-  assert(edge.includes('{ requireProvider: !passwordLogin }'));
+  assert(edge.includes('{ requireProvider: !passwordLogin && !driverPasswordFinish }'));
   const start = edge.indexOf('    if (passwordLogin) {');
   const end = edge.indexOf('    // Serialize sends', start);
   assert(start >= 0 && end > start);
@@ -37,7 +37,7 @@ Deno.test('Setting a password requires consumed OTP, exact verified identity and
   const approved = edge.indexOf("approved.data !== 'approved'", consumed);
   const update = edge.indexOf('const passwordUpdate =');
   assert(consumed >= 0 && approved > consumed && update > approved);
-  assert(edge.includes("body.intent === 'register' && passwordUser.data.user.app_metadata?.bazgo_password_enabled === true"));
+  assert(edge.includes("(body.intent === 'register' || driverPhoneVerification) && passwordUser.data.user.app_metadata?.bazgo_password_enabled === true"));
   assert(edge.includes("body.intent === 'reset_password') throw new PublicError(400, 'account_not_found'"));
   assert(edge.includes('normalizeIraqiPhone(passwordUser.data.user.phone) !== phone'));
   assert(edge.includes('bazgo_password_enabled: true'));

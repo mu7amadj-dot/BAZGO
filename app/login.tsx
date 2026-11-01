@@ -8,6 +8,7 @@ import { BrandMark } from '@/components/feature/BrandMark';
 import { AccountTypePicker } from '@/components/feature/AccountTypePicker';
 import { RegistrationDetails } from '@/components/auth/RegistrationDetails';
 import { PasswordFields } from '@/components/auth/PasswordFields';
+import { DriverRegistrationSteps } from '@/components/auth/DriverRegistrationSteps';
 import { SessionLoading } from '@/components/auth/AccountGate';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
@@ -20,25 +21,32 @@ export default function LoginScreen() {
   const registration = signedIn || login.mode === 'register';
   const recovery = !signedIn && login.mode === 'recovery';
   const isMerchant = login.role === 'merchant';
-  useEffect(() => { scrollRef.current?.scrollTo({ y: 0, animated: false }); }, [login.codeSent, signedIn, login.mode]);
+  useEffect(() => { scrollRef.current?.scrollTo({ y: 0, animated: false }); }, [login.codeSent, signedIn, login.mode, login.driverStep]);
   if (login.loading) return <SessionLoading />;
   if (login.user && login.account) return <Redirect href="/" />;
-  const submitDisabled = signedIn ? !login.role || !login.verifiedPhone : login.codeSent ? login.otp.length !== login.codeLength || login.expiresIn <= 0 : registration ? !login.role : login.mode === 'login' && login.passwordRetryIn > 0;
+  const submitDisabled = login.driverWizard
+    ? login.driverStep === 2 && (signedIn ? !login.verifiedPhone : login.codeSent ? login.otp.length !== login.codeLength || login.expiresIn <= 0 : login.seconds > 0)
+    : signedIn ? !login.role || !login.verifiedPhone : login.codeSent ? login.otp.length !== login.codeLength || login.expiresIn <= 0 : registration ? !login.role : login.mode === 'login' && login.passwordRetryIn > 0;
+  const driverSubmitTitle = login.driverStep === 5 ? 'إنشاء حساب السائق'
+    : login.driverStep === 2 && !signedIn ? login.codeSent ? 'تحقق وانتقل للخطوة التالية' : 'التالي · إرسال رمز التحقق' : 'التالي';
   return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView ref={scrollRef} style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <BrandMark />
         <View style={styles.intro}>
           <MaterialCommunityIcons name="shield-lock-outline" size={22} color={colors.primary} />
-          <View style={styles.introCopy}><Text style={styles.introText}>حسابك برقم الهاتف والرقم السري</Text><Text style={styles.introCaption}>دخول مباشر للحسابات المسجلة · دون OTP</Text></View>
+          <View style={styles.introCopy}><Text style={styles.introText}>{login.driverWizard ? 'حساب السائق · خطوة بخطوة' : 'حسابك برقم الهاتف والرقم السري'}</Text><Text style={styles.introCaption}>{login.driverWizard ? '5 خطوات · تحقق حقيقي · صور إلزامية' : 'دخول مباشر للحسابات المسجلة · دون OTP'}</Text></View>
         </View>
-        {!signedIn && !login.codeSent ? <View style={styles.modeBar} accessibilityRole="tablist">
+        {!signedIn && !login.codeSent && (!login.driverWizard || login.driverStep === 1) ? <View style={styles.modeBar} accessibilityRole="tablist">
           <Pressable onPress={() => login.setMode('register')} disabled={login.operationLoading} accessibilityRole="tab" accessibilityLabel="إنشاء حساب جديد" accessibilityState={{ selected: login.mode === 'register', disabled: login.operationLoading }} style={({ pressed }) => [styles.modeButton, login.mode === 'register' ? styles.modeSelected : null, pressed ? styles.pressed : null]}><Text style={[styles.modeText, login.mode === 'register' ? styles.modeTextSelected : null]}>إنشاء حساب</Text></Pressable>
           <Pressable onPress={() => login.setMode('login')} disabled={login.operationLoading} accessibilityRole="tab" accessibilityLabel="الدخول برقم الهاتف والرقم السري" accessibilityState={{ selected: login.mode === 'login', disabled: login.operationLoading }} style={({ pressed }) => [styles.modeButton, login.mode === 'login' ? styles.modeSelected : null, pressed ? styles.pressed : null]}><Text style={[styles.modeText, login.mode === 'login' ? styles.modeTextSelected : null]}>لديّ حساب</Text></Pressable>
         </View> : null}
         {login.syncError && signedIn ? <View style={styles.panel}>
           <Text style={styles.title}>تعذر تحميل حسابك</Text><Text style={styles.subtitle}>أعد المزامنة قبل المتابعة. بياناتك المدخلة محفوظة في هذه الشاشة.</Text>
-        </View> : login.codeSent && !signedIn ? <View style={styles.panel}>
+        </View> : login.driverWizard ? <>
+          {login.driverStep === 1 && !signedIn ? <AccountTypePicker selectedRole={login.role} onSelect={login.setRole} disabled={login.operationLoading} /> : null}
+          <DriverRegistrationSteps step={login.driverStep} form={login.form} onFieldChange={login.setField} provinceItems={login.provinceItems} vehicleItems={login.vehicleItems} verifiedPhone={login.verifiedPhone} codeSent={login.codeSent} sentPhone={login.sentPhone} otp={login.otp} onOtpChange={login.setOtp} codeLength={login.codeLength} expiresIn={login.expiresIn} resendIn={login.seconds} onResend={login.resend} onChangePhone={login.changePhone} password={login.password} confirmation={login.confirmation} onPasswordChange={login.setPassword} onConfirmationChange={login.setConfirmation} disabled={login.operationLoading} />
+        </> : login.codeSent && !signedIn ? <View style={styles.panel}>
           <View style={styles.sectionHeader}><MaterialCommunityIcons name="shield-key-outline" size={24} color={colors.primary} /><Text style={styles.title}>{recovery ? 'تحقق لتعيين الرقم السري' : 'تحقق من رقم هاتفك'}</Text></View>
           {registration && login.role ? <View style={styles.roleSummary}><MaterialCommunityIcons name={isMerchant ? 'store-outline' : 'truck-outline'} size={22} color={colors.primary} /><Text style={styles.summaryText}>{isMerchant ? 'حساب تاجر' : 'حساب سائق'} · {login.form.name}</Text></View> : null}
           <Text style={styles.subtitle}>تم طلب إرسال الرمز إلى رقمك:</Text><Text style={styles.phone}>{login.sentPhone}</Text>
@@ -72,9 +80,10 @@ export default function LoginScreen() {
         </View>}
         {login.error || login.syncError ? <View style={styles.error} accessibilityLiveRegion="polite"><MaterialCommunityIcons name="alert-circle-outline" color={colors.danger} size={20} /><Text style={styles.errorText}>{login.error || login.syncError}</Text></View> : null}
         {login.notice && !signedIn ? <Text accessibilityLiveRegion="polite" style={styles.notice}>{login.notice}</Text> : null}
-        {!signedIn && !login.codeSent && login.mode !== 'login' ? <Text style={styles.caption}>رمز SMS مطلوب فقط للتسجيل الجديد أو تعيين واستعادة الرقم السري. لا نطلبه عند الدخول المعتاد.</Text> : null}
-        {login.syncError && signedIn ? <Button title="إعادة تحميل الحساب" onPress={login.reload} disabled={login.operationLoading} /> : <Button title={signedIn ? 'حفظ الحساب الحقيقي والمتابعة' : login.codeSent ? recovery ? 'تحقق واحفظ الرقم السري' : 'تحقق وتابع' : registration ? 'متابعة وإرسال رمز التحقق' : recovery ? 'إرسال رمز لتعيين الرقم السري' : 'تسجيل الدخول'} onPress={login.submit} loading={login.operationLoading} disabled={submitDisabled} />}
-        {signedIn ? <Button title="تسجيل الخروج" variant="ghost" onPress={login.logout} loading={login.operationLoading} /> : login.codeSent ? <Pressable onPress={login.changePhone} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel={registration ? 'تعديل بيانات التسجيل أو رقم الهاتف' : 'تعديل رقم الهاتف أو الرقم السري'} style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>{registration ? 'تعديل البيانات أو رقم الهاتف' : 'تعديل الهاتف أو الرقم السري'}</Text></Pressable> : recovery ? <Pressable onPress={() => login.setMode('login')} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel="العودة لتسجيل الدخول" style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>العودة لتسجيل الدخول</Text></Pressable> : null}
+        {!login.driverWizard && !signedIn && !login.codeSent && login.mode !== 'login' ? <Text style={styles.caption}>رمز SMS مطلوب فقط للتسجيل الجديد أو تعيين واستعادة الرقم السري. لا نطلبه عند الدخول المعتاد.</Text> : null}
+        {login.syncError && signedIn ? <Button title="إعادة تحميل الحساب" onPress={login.reload} disabled={login.operationLoading} /> : <Button title={login.driverWizard ? driverSubmitTitle : signedIn ? 'حفظ الحساب الحقيقي والمتابعة' : login.codeSent ? recovery ? 'تحقق واحفظ الرقم السري' : 'تحقق وتابع' : registration ? 'متابعة وإرسال رمز التحقق' : recovery ? 'إرسال رمز لتعيين الرقم السري' : 'تسجيل الدخول'} onPress={login.submit} loading={login.operationLoading} disabled={submitDisabled} />}
+        {login.driverWizard && login.driverStep > 1 ? <Button title="السابق" variant="ghost" onPress={login.previousDriverStep} disabled={login.operationLoading} /> : null}
+        {signedIn ? <Button title="تسجيل الخروج" variant="ghost" onPress={login.logout} loading={login.operationLoading} /> : login.codeSent && !login.driverWizard ? <Pressable onPress={login.changePhone} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel={registration ? 'تعديل بيانات التسجيل أو رقم الهاتف' : 'تعديل رقم الهاتف أو الرقم السري'} style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>{registration ? 'تعديل البيانات أو رقم الهاتف' : 'تعديل الهاتف أو الرقم السري'}</Text></Pressable> : recovery ? <Pressable onPress={() => login.setMode('login')} disabled={login.operationLoading} accessibilityRole="button" accessibilityLabel="العودة لتسجيل الدخول" style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}><Text style={styles.linkText}>العودة لتسجيل الدخول</Text></Pressable> : null}
       </ScrollView>
     </KeyboardAvoidingView>
   </SafeAreaView>;

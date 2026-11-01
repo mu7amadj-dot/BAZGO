@@ -22,21 +22,23 @@ Deno.serve(async (req: Request) => {
     if (raw.length > 2048) throw new PublicError(413, 'request_too_large', 'حجم الطلب غير صالح.');
     let body: Record<string, unknown>;
     try { body = JSON.parse(raw); } catch { throw new PublicError(400, 'invalid_request', 'الطلب غير صالح.'); }
-    if (!body || typeof body !== 'object' || !['send', 'verify', 'password_login'].includes(String(body.action))) throw new PublicError(400, 'invalid_action', 'الطلب غير صالح.');
+    if (!body || typeof body !== 'object' || !['send', 'verify', 'password_login', 'verify_driver_phone', 'finish_driver_registration'].includes(String(body.action))) throw new PublicError(400, 'invalid_action', 'الطلب غير صالح.');
     let phone: string;
     try { phone = normalizeIraqiPhone(body.phone); } catch { throw new PublicError(400, 'invalid_phone', 'أدخل رقم هاتف عراقي صحيحاً، مثال: 07XXXXXXXXX.'); }
     let code = '';
     let password = '';
     const passwordLogin = body.action === 'password_login';
-    if (body.action === 'verify') {
+    const driverPhoneVerification = body.action === 'verify_driver_phone';
+    const driverPasswordFinish = body.action === 'finish_driver_registration';
+    if (body.action === 'verify' || driverPhoneVerification) {
       try { code = validateOtp(body.code); } catch { throw new PublicError(400, 'invalid_code', 'أدخل رمز التحقق كما ورد في الرسالة.'); }
-      if (!['register', 'reset_password'].includes(String(body.intent))) throw new PublicError(400, 'invalid_intent', 'حدّث التطبيق ثم أعد المحاولة.');
+      if (!driverPhoneVerification && !['register', 'reset_password'].includes(String(body.intent))) throw new PublicError(400, 'invalid_intent', 'حدّث التطبيق ثم أعد المحاولة.');
     }
-    if (passwordLogin || body.action === 'verify') {
+    if (passwordLogin || body.action === 'verify' || driverPasswordFinish) {
       try { password = validatePhonePassword(body.password); } catch { throw new PublicError(400, 'invalid_password', 'الرقم السري يجب أن يحتوي على 6 أحرف أو أرقام على الأقل وألا يتجاوز 72 بايت.'); }
     }
     // Provider and admin credentials are read only inside this Edge Function.
-    const configuration = loadPhoneAuthConfig((name) => Deno.env.get(name), { requireProvider: !passwordLogin });
+    const configuration = loadPhoneAuthConfig((name) => Deno.env.get(name), { requireProvider: !passwordLogin && !driverPasswordFinish });
     if (!configuration.ok) {
       // Only variable names and validation reasons are logged; never values or configuration.
       console.error('bazgo-phone-auth configuration failure', { requestId, issues: configuration.issues });
@@ -77,6 +79,30 @@ Deno.serve(async (req: Request) => {
       const result = await admin.rpc('bazgo_release_phone_session', { p_phone_hash: phoneHash, p_lease: leaseId });
       if (result.error) console.error('bazgo-phone-auth lease release failed', { requestId });
     };
+    if (driverPasswordFinish) {
+      // This action is authenticated despite the function's public OTP entry point.
+      // Trust only the JWT's verified user, never a client-submitted user ID or role.
+      const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+      const verified = await admin.auth.getUser(token);
+      if (verified.error || !verified.data.user) throw new PublicError(401, 'authentication_required', 'تحقق من رقم الهاتف قبل إكمال التسجيل.');
+      const caller = verified.data.user;
+      const callerIdentity = await admin.from('bazgo_phone_identities').select('user_id').eq('phone', phone).maybeSingle();
+      if (callerIdentity.error) throw new Error('driver_identity_lookup_failed');
+      if (callerIdentity.data?.user_id !== caller.id || !caller.phone_confirmed_at || normalizeIraqiPhone(caller.phone) !== phone) throw new PublicError(403, 'verified_phone_required', 'يجب استخدام رقم الهاتف المتحقق منه لهذا الحساب.');
+      const account = await admin.from('bazgo_accounts').select('user_id').eq('user_id', caller.id).maybeSingle();
+      if (account.error) throw new Error('driver_account_lookup_failed');
+      if (account.data) throw new PublicError(409, 'account_exists', 'الحساب مسجّل مسبقاً. استخدم الدخول أو استعادة الرقم السري.');
+      if (caller.app_metadata?.bazgo_password_enabled === true) {
+        // Retry after an upload/profile failure cannot reset an existing password.
+        const passwordClient = createClient(backendUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+        const matched = await authenticatePhonePassword(admin, passwordClient, phone, password);
+        if (!matched) throw new PublicError(401, 'invalid_credentials', 'تم تعيين رقم سري لهذا الحساب. أدخل الرقم السري الحالي أو استخدم استعادته.');
+      } else {
+        const saved = await admin.auth.admin.updateUserById(caller.id, { password, app_metadata: { ...caller.app_metadata, bazgo_password_enabled: true, bazgo_onboarding_role: 'driver' } });
+        if (saved.error || saved.data.user?.id !== caller.id) throw new Error('driver_password_update_failed');
+      }
+      return reply(200, { completed: true });
+    }
     if (send) {
       const challengeId = crypto.randomUUID();
       const otp = generateOtp();
@@ -135,14 +161,22 @@ Deno.serve(async (req: Request) => {
     // The existing verified identity must match again before changing Auth credentials.
     const passwordUser = await admin.auth.admin.getUserById(userId);
     if (passwordUser.error || !passwordUser.data.user?.phone_confirmed_at || normalizeIraqiPhone(passwordUser.data.user.phone) !== phone) throw new Error('password_verified_identity_failed');
-    if (body.intent === 'register' && passwordUser.data.user.app_metadata?.bazgo_password_enabled === true) {
+    if ((body.intent === 'register' || driverPhoneVerification) && passwordUser.data.user.app_metadata?.bazgo_password_enabled === true) {
       throw new PublicError(409, 'account_exists', 'لديك حساب برقم سري مسبقاً. اختر لديّ حساب للدخول دون OTP، أو استعادة الرقم السري.');
     }
-    const passwordUpdate = await admin.auth.admin.updateUserById(userId, {
-      password,
-      app_metadata: { ...passwordUser.data.user.app_metadata, bazgo_password_enabled: true },
-    });
-    if (passwordUpdate.error || passwordUpdate.data.user?.id !== userId) throw new Error('password_update_failed');
+    if (driverPhoneVerification) {
+      const savedAccount = await admin.from('bazgo_accounts').select('user_id').eq('user_id', userId).maybeSingle();
+      if (savedAccount.error) throw new Error('driver_account_lookup_failed');
+      if (savedAccount.data) throw new PublicError(409, 'account_exists', 'الحساب مسجّل مسبقاً. استخدم الدخول أو تعيين واستعادة الرقم السري.');
+      const marked = await admin.auth.admin.updateUserById(userId, { app_metadata: { ...passwordUser.data.user.app_metadata, bazgo_onboarding_role: 'driver' } });
+      if (marked.error || marked.data.user?.id !== userId) throw new Error('driver_onboarding_state_failed');
+    } else {
+      const passwordUpdate = await admin.auth.admin.updateUserById(userId, {
+        password,
+        app_metadata: { ...passwordUser.data.user.app_metadata, bazgo_password_enabled: true },
+      });
+      if (passwordUpdate.error || passwordUpdate.data.user?.id !== userId) throw new Error('password_update_failed');
+    }
     // Admin tokens never leave the server. The client receives only its ordinary user session.
     const link = await admin.auth.admin.generateLink({ type: 'magiclink', email: internalEmail });
     if (link.error || link.data.user?.id !== userId || !link.data.properties?.hashed_token) throw new Error('auth_session_link_failed');

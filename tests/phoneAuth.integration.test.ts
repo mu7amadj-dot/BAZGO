@@ -25,7 +25,7 @@ Deno.test({ name: 'Anonymous clients cannot read identities, mutate limits or ac
 } });
 Deno.test({ name: 'Malformed public auth requests fail before provider access or user creation', ignore: !url || !key, fn: async () => {
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  for (const body of [{ action: 'send', phone: 'not-a-number' }, { action: 'verify', phone: '07701234567', code: 'xx' }, { action: 'verify', phone: '07701234567', code: '1234' }, { action: 'password_login', phone: '07701234567', password: 'short' }, { action: 'verify', phone: '07701234567', code: '123456', password: 'long-enough-password', intent: 'unsupported' }, { action: 'unsupported' }]) {
+  for (const body of [{ action: 'send', phone: 'not-a-number' }, { action: 'verify', phone: '07701234567', code: 'xx' }, { action: 'verify', phone: '07701234567', code: '1234' }, { action: 'password_login', phone: '07701234567', password: 'short' }, { action: 'verify', phone: '07701234567', code: '123456', password: 'long-enough-password', intent: 'unsupported' }, { action: 'verify_driver_phone', phone: '07701234567', code: 'xx' }, { action: 'finish_driver_registration', phone: '07701234567', password: 'short' }, { action: 'unsupported' }]) {
     const result = await client.functions.invoke('bazgo-phone-auth', { body });
     assert(result.error instanceof FunctionsHttpError);
     assertEquals(result.error.context.status, 400);

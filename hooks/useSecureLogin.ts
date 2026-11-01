@@ -6,7 +6,8 @@ import { PROVINCES, VEHICLES } from '@/constants/config';
 import type { UserRole } from '@/services/types';
 import { emptyRegistrationForm, normalizeDigits, prepareRegistration, type RegistrationForm } from '@/services/registrationService';
 import { prepareServerProfile } from '@/services/accountProfileService';
-import { PhoneAuthError, sendPhoneCode, signInPhonePassword, verifyPhoneCode } from '@/services/phoneAuthService';
+import { PhoneAuthError, fetchPendingDriverRegistration, finishDriverPassword, sendPhoneCode, signInPhonePassword, verifyDriverPhoneCode, verifyPhoneCode } from '@/services/phoneAuthService';
+import { validateDriverNames, validateDriverPhotos, validateDriverVehicle, type DriverRegistrationStep } from '@/services/driverRegistrationService';
 import { validatePassword, validatePasswordConfirmation } from '@/services/passwordValidation';
 
 export function useSecureLogin() {
@@ -23,6 +24,8 @@ export function useSecureLogin() {
   const [codeLength, setCodeLength] = useState(6);
   const [codeSent, setCodeSent] = useState(false);
   const [role, setRoleValue] = useState<UserRole | null>(null);
+  const [driverStep, setDriverStep] = useState<DriverRegistrationStep>(1);
+  const preparedDriver = useRef<{ key: string; account: Awaited<ReturnType<typeof prepareServerProfile>> } | null>(null);
   const [form, setForm] = useState<RegistrationForm>({ ...emptyRegistrationForm });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +37,7 @@ export function useSecureLogin() {
   const pending = useRef(false);
   const previousUserId = useRef<string | null>(auth.user?.id ?? null);
   const operationLoading = auth.operationLoading || busy;
+  const driverWizard = role === 'driver' && !booking.account && (mode === 'register' || !!auth.user);
   const provinceItems = useMemo(() => PROVINCES.map((name) => ({ id: name, label: name, icon: 'map-marker-outline' })), []);
   const vehicleItems = useMemo(() => VEHICLES.map((vehicle) => ({ id: vehicle.id, label: vehicle.label, icon: vehicle.icon, meta: `حتى ${vehicle.capacity} طن` })), []);
   const setField = useCallback((field: keyof RegistrationForm, value: string) => {
@@ -43,20 +47,20 @@ export function useSecureLogin() {
   const setPhone = useCallback((value: string) => setField('phone', value), [setField]);
   const setRole = useCallback((value: UserRole) => {
     if (pending.current || operationLoading || codeSent) return;
-    setRoleValue(value); setError(''); setNotice('');
+    setRoleValue(value); setDriverStep(1); setError(''); setNotice('');
   }, [operationLoading, codeSent]);
   const setMode = useCallback((value: 'register' | 'login' | 'recovery') => {
     if (pending.current || operationLoading || codeSent || auth.user) return;
     setModeValue(value); setPasswordValue(''); setConfirmationValue(''); setError(''); setNotice('');
   }, [operationLoading, codeSent, auth.user]);
   const setPassword = useCallback((value: string) => {
-    if (pending.current || operationLoading || codeSent || auth.user) return;
+    if (pending.current || operationLoading || codeSent || (auth.user && !driverWizard)) return;
     setPasswordValue(value);
-  }, [operationLoading, codeSent, auth.user]);
+  }, [operationLoading, codeSent, auth.user, driverWizard]);
   const setConfirmation = useCallback((value: string) => {
-    if (pending.current || operationLoading || codeSent || auth.user) return;
+    if (pending.current || operationLoading || codeSent || (auth.user && !driverWizard)) return;
     setConfirmationValue(value);
-  }, [operationLoading, codeSent, auth.user]);
+  }, [operationLoading, codeSent, auth.user, driverWizard]);
   const setOtp = useCallback((value: string) => setOtpValue(normalizeDigits(value).replace(/\D/g, '').slice(0, codeLength)), [codeLength]);
 
   useEffect(() => {
@@ -64,7 +68,7 @@ export function useSecureLogin() {
     // Keep the anonymous registration draft through OTP sign-in. Clear it only
     // when a signed-in user logs out or is replaced, never on null -> verified user.
     if (previousUserId.current && previousUserId.current !== nextUserId) {
-      setRoleValue(null); setForm({ ...emptyRegistrationForm }); setModeValue('register');
+      setRoleValue(null); setDriverStep(1); preparedDriver.current = null; setForm({ ...emptyRegistrationForm }); setModeValue('register');
       setError(''); setNotice('');
     }
     if (nextUserId || previousUserId.current) {
@@ -76,6 +80,16 @@ export function useSecureLogin() {
   useEffect(() => {
     if (identity.phone) setForm((current) => ({ ...current, phone: identity.phone }));
   }, [identity.phone]);
+  useEffect(() => {
+    if (!auth.user?.id) return;
+    let cancelled = false;
+    // Restore only the onboarding role after reopening. Names/images remain transient
+    // and must be re-entered; a verified session does not create a driver account.
+    void fetchPendingDriverRegistration().then((isDriver) => {
+      if (!cancelled && isDriver) setRoleValue((current) => current ?? 'driver');
+    }).catch((issue) => { if (!cancelled) setError(issue instanceof Error ? issue.message : 'تعذر تحميل حالة التسجيل.'); });
+    return () => { cancelled = true; };
+  }, [auth.user?.id]);
   useEffect(() => {
     const update = () => {
       setSeconds(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
@@ -108,11 +122,56 @@ export function useSecureLogin() {
     setExpiresAt(Date.now() + result.expiresIn * 1000);
     setNotice('تم طلب إرسال رمز التحقق عبر SMS. قد يستغرق وصوله لحظات.');
   }, [form.phone]);
+  const previousDriverStep = useCallback(() => {
+    if (pending.current || operationLoading) return;
+    if (codeSent) { setCodeSent(false); setSentPhone(''); setOtpValue(''); setExpiresAt(0); }
+    setDriverStep((current) => Math.max(1, current - 1) as DriverRegistrationStep);
+    setError(''); setNotice('');
+  }, [operationLoading, codeSent]);
   const submit = useCallback(async () => {
     if (pending.current || operationLoading || auth.loading || booking.loading || identity.loading) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
     try {
-      if (auth.user) {
+      if (driverWizard) {
+        if (driverStep === 1) {
+          validateDriverNames(form); setDriverStep(2);
+        } else if (driverStep === 2) {
+          if (auth.user) {
+            if (!identity.phone || identity.error || booking.syncError) throw new Error('أعد تحميل الحساب للتأكد من رقم الهاتف المتحقق منه.');
+            setDriverStep(3); setNotice('');
+          } else if (!codeSent) {
+            validateDriverNames(form);
+            if (Date.now() < resendAt) throw new PhoneAuthError('انتظر قبل طلب رمز آخر.', Math.ceil((resendAt - Date.now()) / 1000));
+            await sendCode();
+          } else {
+            if (Date.now() >= expiresAt) throw new PhoneAuthError('انتهت صلاحية الرمز. أرسل رمزاً جديداً.', 0, 'code_expired');
+            if (otp.length !== codeLength) throw new PhoneAuthError(`أدخل رمز التحقق المكوّن من ${codeLength} أرقام.`);
+            await verifyDriverPhoneCode(sentPhone, otp);
+            setCodeSent(false); setOtpValue(''); setDriverStep(3); setNotice('تم التحقق من رقمك. أكمل بيانات المركبة.');
+          }
+        } else if (driverStep === 3) {
+          validateDriverVehicle(form, VEHICLES.map((vehicle) => vehicle.id), PROVINCES); setDriverStep(4);
+        } else if (driverStep === 4) {
+          validateDriverPhotos(form); setDriverStep(5);
+        } else {
+          if (!auth.user || !identity.phone || identity.error || booking.syncError) throw new Error('يجب إكمال التحقق من الهاتف وإعادة المزامنة قبل حفظ الحساب.');
+          validateDriverNames(form);
+          validateDriverVehicle(form, VEHICLES.map((vehicle) => vehicle.id), PROVINCES);
+          validateDriverPhotos(form);
+          validatePasswordConfirmation(password, confirmation);
+          const verifiedForm = { ...form, phone: identity.phone };
+          const key = JSON.stringify([auth.user.id, verifiedForm]);
+          if (preparedDriver.current?.key !== key) {
+            preparedDriver.current = { key, account: await prepareServerProfile('driver', verifiedForm, auth.user.id) };
+          }
+          // Uploaded files are cached for retry in this session. Account insertion is
+          // server-guarded until both password and all three private images exist.
+          await finishDriverPassword(identity.phone, password);
+          const account = preparedDriver.current.account;
+          await booking.setupAccount('driver', account.name, account.profile);
+          setPasswordValue(''); setConfirmationValue('');
+        }
+      } else if (auth.user) {
         if (booking.syncError || identity.error) throw new Error('أعد تحميل الحساب قبل المتابعة.');
         if (booking.account) return; // Existing roles are restored from the server, not overwritten by the form.
         if (!identity.phone) throw new Error('يجب التحقق من رقم الهاتف عبر SMS قبل إنشاء الحساب. سجّل الخروج ثم تحقق من رقمك.');
@@ -145,7 +204,7 @@ export function useSecureLogin() {
       }
     } catch (issue) { handleError(issue); }
     finally { pending.current = false; setBusy(false); }
-  }, [operationLoading, auth, booking.loading, booking.syncError, booking.account, booking.setupAccount, identity, mode, role, form, password, confirmation, passwordRetryAt, codeSent, resendAt, expiresAt, codeLength, otp, sentPhone, sendCode, handleError]);
+  }, [operationLoading, auth, booking.loading, booking.syncError, booking.account, booking.setupAccount, identity, mode, role, driverWizard, driverStep, form, password, confirmation, passwordRetryAt, codeSent, resendAt, expiresAt, codeLength, otp, sentPhone, sendCode, handleError]);
   const resend = useCallback(async () => {
     if (!codeSent || auth.user || Date.now() < resendAt || pending.current || operationLoading) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
@@ -165,7 +224,7 @@ export function useSecureLogin() {
       const result = await auth.logout();
       if (result.error) setError(result.error);
       else {
-        setForm({ ...emptyRegistrationForm }); setRoleValue(null); setModeValue('register');
+        setForm({ ...emptyRegistrationForm }); setRoleValue(null); setDriverStep(1); preparedDriver.current = null; setModeValue('register');
         setPasswordValue(''); setConfirmationValue(''); setPasswordRetryAt(0);
         setCodeSent(false); setOtpValue(''); setSentPhone(''); setExpiresAt(0); setNotice('');
       }
@@ -176,5 +235,5 @@ export function useSecureLogin() {
     loading: auth.loading || booking.loading || identity.loading, operationLoading, mode, setMode, phone: form.phone, setPhone,
     password, setPassword, confirmation, setConfirmation, passwordRetryIn,
     verifiedPhone: identity.phone, sentPhone, otp, setOtp, codeLength, codeSent, expiresIn,
-    role, setRole, form, setField, provinceItems, vehicleItems, error, notice, seconds, submit, resend, changePhone, logout };
+    role, setRole, driverWizard, driverStep, previousDriverStep, form, setField, provinceItems, vehicleItems, error, notice, seconds, submit, resend, changePhone, logout };
 }
