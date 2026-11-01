@@ -6,13 +6,18 @@ import { PROVINCES, VEHICLES } from '@/constants/config';
 import type { UserRole } from '@/services/types';
 import { emptyRegistrationForm, normalizeDigits, prepareRegistration, type RegistrationForm } from '@/services/registrationService';
 import { prepareServerProfile } from '@/services/accountProfileService';
-import { PhoneAuthError, sendPhoneCode, verifyPhoneCode } from '@/services/phoneAuthService';
+import { PhoneAuthError, sendPhoneCode, signInPhonePassword, verifyPhoneCode } from '@/services/phoneAuthService';
+import { validatePassword, validatePasswordConfirmation } from '@/services/passwordValidation';
 
 export function useSecureLogin() {
   const auth = useAuth();
   const booking = useBooking();
   const identity = useVerifiedPhone();
-  const [mode, setModeValue] = useState<'register' | 'login'>('register');
+  const [mode, setModeValue] = useState<'register' | 'login' | 'recovery'>('register');
+  const [password, setPasswordValue] = useState('');
+  const [confirmation, setConfirmationValue] = useState('');
+  const [passwordRetryAt, setPasswordRetryAt] = useState(0);
+  const [passwordRetryIn, setPasswordRetryIn] = useState(0);
   const [sentPhone, setSentPhone] = useState('');
   const [otp, setOtpValue] = useState('');
   const [codeLength, setCodeLength] = useState(6);
@@ -40,9 +45,17 @@ export function useSecureLogin() {
     if (pending.current || operationLoading || codeSent) return;
     setRoleValue(value); setError(''); setNotice('');
   }, [operationLoading, codeSent]);
-  const setMode = useCallback((value: 'register' | 'login') => {
+  const setMode = useCallback((value: 'register' | 'login' | 'recovery') => {
     if (pending.current || operationLoading || codeSent || auth.user) return;
-    setModeValue(value); setError(''); setNotice('');
+    setModeValue(value); setPasswordValue(''); setConfirmationValue(''); setError(''); setNotice('');
+  }, [operationLoading, codeSent, auth.user]);
+  const setPassword = useCallback((value: string) => {
+    if (pending.current || operationLoading || codeSent || auth.user) return;
+    setPasswordValue(value);
+  }, [operationLoading, codeSent, auth.user]);
+  const setConfirmation = useCallback((value: string) => {
+    if (pending.current || operationLoading || codeSent || auth.user) return;
+    setConfirmationValue(value);
   }, [operationLoading, codeSent, auth.user]);
   const setOtp = useCallback((value: string) => setOtpValue(normalizeDigits(value).replace(/\D/g, '').slice(0, codeLength)), [codeLength]);
 
@@ -55,6 +68,7 @@ export function useSecureLogin() {
       setError(''); setNotice('');
     }
     if (nextUserId || previousUserId.current) {
+      setPasswordValue(''); setConfirmationValue(''); setPasswordRetryAt(0);
       setCodeSent(false); setOtpValue(''); setSentPhone(''); setExpiresAt(0);
     }
     previousUserId.current = nextUserId;
@@ -66,16 +80,25 @@ export function useSecureLogin() {
     const update = () => {
       setSeconds(Math.max(0, Math.ceil((resendAt - Date.now()) / 1000)));
       setExpiresIn(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+      setPasswordRetryIn(Math.max(0, Math.ceil((passwordRetryAt - Date.now()) / 1000)));
     };
     update(); const timer = setInterval(update, 1000); return () => clearInterval(timer);
-  }, [resendAt, expiresAt]);
+  }, [resendAt, expiresAt, passwordRetryAt]);
   const handleError = useCallback((issue: unknown) => {
     setError(issue instanceof Error ? issue.message : 'تعذر إكمال العملية.');
-    if (issue instanceof PhoneAuthError && issue.retryAfter > 0) setResendAt((current) => Math.max(current, Date.now() + issue.retryAfter * 1000));
+    if (issue instanceof PhoneAuthError && issue.retryAfter > 0) {
+      const retryAt = Date.now() + issue.retryAfter * 1000;
+      if (mode === 'login') setPasswordRetryAt((current) => Math.max(current, retryAt));
+      else setResendAt((current) => Math.max(current, retryAt));
+    }
+    if (issue instanceof PhoneAuthError && issue.code === 'account_exists') {
+      setModeValue('login'); setCodeSent(false); setOtpValue(''); setSentPhone(''); setExpiresAt(0);
+      setPasswordValue(''); setConfirmationValue('');
+    }
     if (issue instanceof PhoneAuthError && ['code_expired', 'code_locked'].includes(issue.code)) {
       setExpiresAt(0); setOtpValue('');
     }
-  }, []);
+  }, [mode]);
   const sendCode = useCallback(async () => {
     const result = await sendPhoneCode(form.phone);
     if (!result.sent || result.codeLength !== 6) throw new Error('استجابة خدمة SMS غير صالحة.');
@@ -96,7 +119,14 @@ export function useSecureLogin() {
         if (!role) throw new Error('اختر نوع الحساب أولاً.');
         const account = await prepareServerProfile(role, { ...form, phone: identity.phone }, auth.user.id);
         await booking.setupAccount(role, account.name, account.profile);
+      } else if (!codeSent && mode === 'login') {
+        // Existing accounts use the normal server password verifier; no OTP request.
+        validatePassword(password);
+        if (Date.now() < passwordRetryAt) throw new PhoneAuthError('انتظر قبل محاولة الدخول مجدداً.', Math.ceil((passwordRetryAt - Date.now()) / 1000));
+        await signInPhonePassword(form.phone, password);
+        setPasswordValue(''); setConfirmationValue('');
       } else if (!codeSent) {
+        validatePasswordConfirmation(password, confirmation);
         if (mode === 'register') {
           if (!role) throw new Error('اختر التسجيل كتاجر أو كسائق أولاً.');
           // Validate every role-specific field before sending a paid SMS. No images
@@ -108,12 +138,14 @@ export function useSecureLogin() {
       } else {
         if (Date.now() >= expiresAt) throw new PhoneAuthError('انتهت صلاحية الرمز. أرسل رمزاً جديداً.');
         if (otp.length !== codeLength) throw new PhoneAuthError(`أدخل رمز التحقق المكوّن من ${codeLength} أرقام.`);
-        await verifyPhoneCode(sentPhone, otp);
+        validatePasswordConfirmation(password, confirmation);
+        await verifyPhoneCode(sentPhone, otp, password, mode === 'recovery' ? 'reset_password' : 'register');
+        setPasswordValue(''); setConfirmationValue('');
         setOtpValue(''); setCodeSent(false);
       }
     } catch (issue) { handleError(issue); }
     finally { pending.current = false; setBusy(false); }
-  }, [operationLoading, auth, booking.loading, booking.syncError, booking.account, booking.setupAccount, identity, mode, role, form, codeSent, resendAt, expiresAt, codeLength, otp, sentPhone, sendCode, handleError]);
+  }, [operationLoading, auth, booking.loading, booking.syncError, booking.account, booking.setupAccount, identity, mode, role, form, password, confirmation, passwordRetryAt, codeSent, resendAt, expiresAt, codeLength, otp, sentPhone, sendCode, handleError]);
   const resend = useCallback(async () => {
     if (!codeSent || auth.user || Date.now() < resendAt || pending.current || operationLoading) return;
     pending.current = true; setBusy(true); setError(''); setNotice('');
@@ -134,6 +166,7 @@ export function useSecureLogin() {
       if (result.error) setError(result.error);
       else {
         setForm({ ...emptyRegistrationForm }); setRoleValue(null); setModeValue('register');
+        setPasswordValue(''); setConfirmationValue(''); setPasswordRetryAt(0);
         setCodeSent(false); setOtpValue(''); setSentPhone(''); setExpiresAt(0); setNotice('');
       }
     } catch (issue) { handleError(issue); }
@@ -141,6 +174,7 @@ export function useSecureLogin() {
   }, [auth.logout, operationLoading, handleError]);
   return { ...booking, reload, syncError: booking.syncError || identity.error, user: auth.user,
     loading: auth.loading || booking.loading || identity.loading, operationLoading, mode, setMode, phone: form.phone, setPhone,
+    password, setPassword, confirmation, setConfirmation, passwordRetryIn,
     verifiedPhone: identity.phone, sentPhone, otp, setOtp, codeLength, codeSent, expiresIn,
     role, setRole, form, setField, provinceItems, vehicleItems, error, notice, seconds, submit, resend, changePhone, logout };
 }

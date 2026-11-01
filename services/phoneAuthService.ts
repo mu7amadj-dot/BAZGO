@@ -1,6 +1,7 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/template';
 import { normalizeDigits, normalizePhone } from './registrationService';
+import { validatePassword } from './passwordValidation';
 
 export class PhoneAuthError extends Error {
   constructor(message: string, public retryAfter = 0, public code = '') { super(message); }
@@ -18,7 +19,7 @@ async function invokePhoneAuth<T>(body: Record<string, string>): Promise<T> {
       try {
         const text = await error.context.text();
         const details = JSON.parse(text);
-        throw new PhoneAuthError(typeof details.error === 'string' ? details.error : `تعذر الاتصال بخدمة SMS (${error.context.status}).`, Number(details.retryAfter) || 0, details.code ?? '');
+        throw new PhoneAuthError(typeof details.error === 'string' ? details.error : `تعذر الاتصال بخدمة المصادقة (${error.context.status}).`, Number(details.retryAfter) || 0, details.code ?? '');
       } catch (issue) { if (issue instanceof PhoneAuthError) throw issue; }
     }
     throw new PhoneAuthError('تعذر الاتصال بخدمة التحقق. تحقق من اتصال الإنترنت وحاول مجدداً.');
@@ -36,10 +37,20 @@ export async function sendPhoneCode(phone: string): Promise<SmsCodeResult> {
   }
   return result;
 }
-export async function verifyPhoneCode(phone: string, code: string): Promise<void> {
+export type PhoneVerificationIntent = 'register' | 'reset_password';
+export async function signInPhonePassword(phone: string, password: string): Promise<void> {
+  validatePassword(password);
+  const result = await invokePhoneAuth<{ session?: { access_token: string; refresh_token: string } }>({ action: 'password_login', phone: validPhone(phone), password });
+  await savePhoneSession(result);
+}
+export async function verifyPhoneCode(phone: string, code: string, password: string, intent: PhoneVerificationIntent): Promise<void> {
   const token = normalizeDigits(code).replace(/\s/g, '');
   if (!/^\d{6}$/.test(token)) throw new PhoneAuthError('أدخل رمز التحقق المكوّن من 6 أرقام المرسل إلى رقمك.');
-  const result = await invokePhoneAuth<{ session?: { access_token: string; refresh_token: string } }>({ action: 'verify', phone: validPhone(phone), code: token });
+  validatePassword(password);
+  const result = await invokePhoneAuth<{ session?: { access_token: string; refresh_token: string } }>({ action: 'verify', phone: validPhone(phone), code: token, password, intent });
+  await savePhoneSession(result);
+}
+async function savePhoneSession(result: { session?: { access_token: string; refresh_token: string } }): Promise<void> {
   if (typeof result.session?.access_token !== 'string' || !result.session.access_token || typeof result.session.refresh_token !== 'string' || !result.session.refresh_token) throw new PhoneAuthError('لم يتم إنشاء جلسة تسجيل الدخول.');
   // Reuse the existing client. AuthProvider is updated by its onAuthStateChange listener.
   const { data, error } = await getSupabaseClient().auth.setSession(result.session);

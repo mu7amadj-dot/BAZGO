@@ -1,16 +1,18 @@
 // Powered by OnSpace.AI
 import React, { memo, useState } from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors, layout, radius, spacing, typography } from '@/constants/theme';
 
 interface FieldProps {
   label: string; value: string; onChangeText: (text: string) => void; placeholder?: string;
   keyboardType?: 'default' | 'numeric' | 'phone-pad'; multiline?: boolean; error?: string;
-  icon?: string; compact?: boolean; editable?: boolean; maxLength?: number; textContentType?: 'telephoneNumber' | 'oneTimeCode';
+  icon?: string; compact?: boolean; editable?: boolean; maxLength?: number; secureTextEntry?: boolean;
+  textContentType?: 'telephoneNumber' | 'oneTimeCode' | 'password' | 'newPassword';
 }
-export const Field = memo(function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, error, icon, compact = false, editable = true, maxLength, textContentType }: FieldProps) {
+export const Field = memo(function Field({ label, value, onChangeText, placeholder, keyboardType = 'default', multiline = false, error, icon, compact = false, editable = true, maxLength, textContentType, secureTextEntry = false }: FieldProps) {
   const [focused, setFocused] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const isPhone = keyboardType === 'phone-pad';
   return (
     <View style={styles.wrap}>
@@ -22,9 +24,14 @@ export const Field = memo(function Field({ label, value, onChangeText, placehold
           <TextInput style={[styles.input, compact ? styles.compactInput : null, multiline ? styles.multilineInput : null, isPhone ? styles.phone : null]}
             value={value} onChangeText={onChangeText} editable={editable} placeholder={placeholder} placeholderTextColor={colors.textMuted}
             keyboardType={keyboardType} multiline={multiline} textAlign="right" accessibilityLabel={label}
-            maxLength={maxLength} textContentType={textContentType} autoComplete={textContentType === 'oneTimeCode' ? 'sms-otp' : isPhone ? 'tel' : 'off'}
+            maxLength={maxLength} textContentType={textContentType} secureTextEntry={secureTextEntry && !passwordVisible}
+            autoCapitalize={secureTextEntry ? 'none' : 'sentences'} autoCorrect={!secureTextEntry}
+            autoComplete={textContentType === 'newPassword' ? 'new-password' : textContentType === 'password' ? 'current-password' : textContentType === 'oneTimeCode' ? 'sms-otp' : isPhone ? 'tel' : 'off'}
             onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} selectionColor={colors.primary} />
         </View>
+        {secureTextEntry ? <Pressable onPress={() => setPasswordVisible((visible) => !visible)} disabled={!editable} accessibilityRole="button" accessibilityLabel={passwordVisible ? 'إخفاء الرقم السري' : 'إظهار الرقم السري'} accessibilityState={{ disabled: !editable }} style={({ pressed }) => [styles.visibilityButton, pressed ? styles.pressed : null]}>
+          <MaterialCommunityIcons name={passwordVisible ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textSubtle} />
+        </Pressable> : null}
       </View>
       {error ? <View style={styles.errorRow}><MaterialCommunityIcons name="alert-circle-outline" size={16} color={colors.danger} /><Text style={styles.error}>{error}</Text></View> : null}
     </View>
@@ -37,6 +44,8 @@ const styles = StyleSheet.create({
   compactShell: { minHeight: layout.controlHeight },
   iconWrap: { width: 36, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderLeftWidth: 1, borderLeftColor: colors.border, marginLeft: spacing.sm },
   inputWrap: { flex: 1, minWidth: 0 },
+  visibilityButton: { width: layout.touchTarget, height: layout.touchTarget, alignItems: 'center', justifyContent: 'center' },
+  pressed: { opacity: 0.7 },
   insetLabel: { ...typography.caption, color: colors.textMuted, textAlign: 'right' },
   input: { ...typography.body, color: colors.text, height: 54, paddingVertical: spacing.sm, paddingHorizontal: 0, writingDirection: 'rtl' },
   compactInput: { height: 30, paddingVertical: 0 },

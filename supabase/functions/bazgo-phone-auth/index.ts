@@ -4,6 +4,7 @@ import { normalizeIraqiPhone, sha256, validateOtp } from '../_shared/phoneOtp.ts
 import { loadPhoneAuthConfig, phoneAuthConfigMessage } from '../_shared/phoneAuthConfig.ts';
 import { generateOtp, hashOtp, otpCodeLength, otpExpiresIn, otpResendAfter } from '../_shared/otpChallenge.ts';
 import { OtpiqError, sendOtpiqCode } from '../_shared/otpiq.ts';
+import { authenticatePhonePassword, validatePhonePassword } from '../_shared/phonePassword.ts';
 
 class PublicError extends Error {
   constructor(public status: number, public code: string, message: string, public retryAfter = 0) { super(message); }
@@ -21,15 +22,21 @@ Deno.serve(async (req: Request) => {
     if (raw.length > 2048) throw new PublicError(413, 'request_too_large', 'حجم الطلب غير صالح.');
     let body: Record<string, unknown>;
     try { body = JSON.parse(raw); } catch { throw new PublicError(400, 'invalid_request', 'الطلب غير صالح.'); }
-    if (!body || typeof body !== 'object' || !['send', 'verify'].includes(String(body.action))) throw new PublicError(400, 'invalid_action', 'الطلب غير صالح.');
+    if (!body || typeof body !== 'object' || !['send', 'verify', 'password_login'].includes(String(body.action))) throw new PublicError(400, 'invalid_action', 'الطلب غير صالح.');
     let phone: string;
     try { phone = normalizeIraqiPhone(body.phone); } catch { throw new PublicError(400, 'invalid_phone', 'أدخل رقم هاتف عراقي صحيحاً، مثال: 07XXXXXXXXX.'); }
     let code = '';
+    let password = '';
+    const passwordLogin = body.action === 'password_login';
     if (body.action === 'verify') {
       try { code = validateOtp(body.code); } catch { throw new PublicError(400, 'invalid_code', 'أدخل رمز التحقق كما ورد في الرسالة.'); }
+      if (!['register', 'reset_password'].includes(String(body.intent))) throw new PublicError(400, 'invalid_intent', 'حدّث التطبيق ثم أعد المحاولة.');
+    }
+    if (passwordLogin || body.action === 'verify') {
+      try { password = validatePhonePassword(body.password); } catch { throw new PublicError(400, 'invalid_password', 'الرقم السري يجب أن يحتوي على 6 أحرف أو أرقام على الأقل وألا يتجاوز 72 بايت.'); }
     }
     // Provider and admin credentials are read only inside this Edge Function.
-    const configuration = loadPhoneAuthConfig((name) => Deno.env.get(name));
+    const configuration = loadPhoneAuthConfig((name) => Deno.env.get(name), { requireProvider: !passwordLogin });
     if (!configuration.ok) {
       // Only variable names and validation reasons are logged; never values or configuration.
       console.error('bazgo-phone-auth configuration failure', { requestId, issues: configuration.issues });
@@ -43,13 +50,21 @@ Deno.serve(async (req: Request) => {
     const ipHash = await sha256(ip);
     const send = body.action === 'send';
     for (const [bucket, windowSeconds, maxAttempts, interval] of [
-      [`global:${body.action}`, 3600, send ? 500 : 2000, 0],
-      [`ip:${body.action}:${ipHash}`, 3600, send ? 30 : 100, 0],
-      [`phone:${body.action}:${phoneHash}`, send ? 3600 : 600, send ? 5 : 10, send ? 60 : 2],
+      [`global:${body.action}`, 3600, send || passwordLogin ? 500 : 2000, 0],
+      [`ip:${body.action}:${ipHash}`, 3600, send || passwordLogin ? 30 : 100, 0],
+      [`phone:${body.action}:${phoneHash}`, send ? 3600 : 600, send || passwordLogin ? 5 : 10, send ? 60 : 2],
     ] as [string, number, number, number][]) {
       const limit = await admin.rpc('bazgo_take_otp_limit', { p_bucket: bucket, p_window_seconds: windowSeconds, p_max_attempts: maxAttempts, p_min_interval: interval });
       if (limit.error) throw new Error('rate_limit_database_failed');
       if (Number(limit.data) > 0) throw new PublicError(429, 'rate_limited', 'طلبات كثيرة. انتظر قبل المحاولة مجدداً.', Number(limit.data));
+    }
+    if (passwordLogin) {
+      // Password authentication never sends SMS, consumes OTP or creates/links users.
+      const passwordClient = createClient(backendUrl, anonKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+      const session = await authenticatePhonePassword(admin, passwordClient, phone, password);
+      if (!session) throw new PublicError(401, 'invalid_credentials', 'رقم الهاتف أو الرقم السري غير صحيح. إذا لم تعيّن رقماً سرياً من قبل، استخدم تعيين أو استعادة الرقم السري.');
+      console.log('bazgo-phone-auth password login completed', { requestId });
+      return reply(200, { session });
     }
     // Serialize sends and verification/provisioning for a phone across server instances.
     const leaseId = crypto.randomUUID();
@@ -100,6 +115,7 @@ Deno.serve(async (req: Request) => {
     let userId = identity.data?.user_id as string | undefined;
     let internalEmail = claim.data.email as string;
     if (!userId) {
+      if (body.intent === 'reset_password') throw new PublicError(400, 'account_not_found', 'لا يوجد حساب متحقق منه لهذا الرقم. استخدم إنشاء حساب جديد.');
       // Random non-deliverable address bridges to the existing email-capable AuthProvider.
       // It is an internal identifier, not user email input or an email verification bypass.
       const provision = await admin.auth.admin.generateLink({ type: 'magiclink', email: internalEmail, options: { data: { username: 'BAZGO' } } });
@@ -115,6 +131,18 @@ Deno.serve(async (req: Request) => {
       if (existing.error || !existing.data.user?.email || !existing.data.user.phone_confirmed_at || normalizeIraqiPhone(existing.data.user.phone) !== phone) throw new Error('identity_mismatch');
       internalEmail = existing.data.user.email;
     }
+    // Only a consumed, valid phone OTP can set the first password or explicitly reset it.
+    // The existing verified identity must match again before changing Auth credentials.
+    const passwordUser = await admin.auth.admin.getUserById(userId);
+    if (passwordUser.error || !passwordUser.data.user?.phone_confirmed_at || normalizeIraqiPhone(passwordUser.data.user.phone) !== phone) throw new Error('password_verified_identity_failed');
+    if (body.intent === 'register' && passwordUser.data.user.app_metadata?.bazgo_password_enabled === true) {
+      throw new PublicError(409, 'account_exists', 'لديك حساب برقم سري مسبقاً. اختر لديّ حساب للدخول دون OTP، أو استعادة الرقم السري.');
+    }
+    const passwordUpdate = await admin.auth.admin.updateUserById(userId, {
+      password,
+      app_metadata: { ...passwordUser.data.user.app_metadata, bazgo_password_enabled: true },
+    });
+    if (passwordUpdate.error || passwordUpdate.data.user?.id !== userId) throw new Error('password_update_failed');
     // Admin tokens never leave the server. The client receives only its ordinary user session.
     const link = await admin.auth.admin.generateLink({ type: 'magiclink', email: internalEmail });
     if (link.error || link.data.user?.id !== userId || !link.data.properties?.hashed_token) throw new Error('auth_session_link_failed');
